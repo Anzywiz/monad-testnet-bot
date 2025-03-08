@@ -1,3 +1,5 @@
+![Bot Preview](https://github.com/Anzywiz/monad-testnet-bot/blob/main/monad-testnet-bot%20banner.png)
+
 # Monad Swap Bot
 
 If you're farming the Monad and want to automate interactions across multiple accounts programmatically, this bot is for you. It supports auto-farming, multiple account management, and proxy integration to enhance efficiency and anonymity.
