@@ -10,16 +10,6 @@ import os
 from proxies import get_free_proxy
 
 
-try:
-    # Load data from the JSON file
-    with open('config.json', "r") as file:
-        data = json.load(file)
-except FileNotFoundError:
-    raise FileNotFoundError(f"config.json file does not exist. Create one")
-except json.JSONDecodeError:
-    raise ValueError(f"The config file is not a valid JSON file.")
-
-
 formatter = colorlog.ColoredFormatter(
     '%(log_color)s%(levelname)s: %(asctime)s: %(message)s',
     log_colors={
@@ -40,13 +30,23 @@ logger.addHandler(handler)
 logger.setLevel(colorlog.INFO)
 
 
+try:
+    # Load data from the JSON file
+    with open('config.json', "r") as file:
+        data = json.load(file)
+except FileNotFoundError:
+    raise FileNotFoundError(f"config.json file does not exist. Create one")
+except json.JSONDecodeError:
+    raise ValueError(f"The config file is not a valid JSON file.")
+
+
 RPC_URL = "https://testnet-rpc.monad.xyz"
 FUNDER_PRIVATE_KEY = data["funder_private_key"]
-FUND_AMT = 0.5
+FUND_AMT = data["fund_amount"]
+SWAP_CYCLES = data["daily_swap_cycles"]
+PROXIES = data["proxies"]
 
-
-proxies = data["proxies"]
-if proxies:
+if PROXIES:
     print(f"Proxies found in config file")
 else:
     print(f"Proxies NOT found in config file!")
@@ -54,8 +54,8 @@ else:
 
 
 def web3_proxy():
-    if proxies:
-        web3 = Web3(Web3.HTTPProvider(RPC_URL, request_kwargs={"proxies": {'https': proxies, 'http': proxies}}))
+    if PROXIES:
+        web3 = Web3(Web3.HTTPProvider(RPC_URL, request_kwargs={"proxies": {'https': PROXIES, 'http': PROXIES}}))
     else:
         if reply.lower() == 'y':
             free_proxies = get_free_proxy()['proxy']
@@ -222,13 +222,13 @@ class MonadSwapper:
         self.confirm_mon_swap(tx_data, amount_mon, 'YAKI')
 
 
-async def timeout():
-    timeout = random.randint(60, 100)
+async def timeout(start=60, end=300):
+    timeout = random.randint(start, end)
     logging.info(f"Awaiting {timeout}s timeout...")
     await asyncio.sleep(timeout)
 
 
-async def swap_tokens(private_key, cycles=5):
+async def swap_tokens(private_key, cycles=SWAP_CYCLES):
     # Initialize the swapper
     swapper = MonadSwapper(private_key)
     count = 0
@@ -249,13 +249,12 @@ async def swap_tokens(private_key, cycles=5):
                     f"Account {swapper.short_address()}: Signer had insufficient balance. Funding from Fund wallet..")
                 # initialise funder
                 funder = MonadSwapper(FUNDER_PRIVATE_KEY)
-                FUND_AMT = 0.5
                 funder.send_base_tokens(swapper.wallet_address, FUND_AMT)
             else:
                 logging.error(f"Error {e}. Trying swap all over again..")
 
     logging.info(f"Account {swapper.short_address()}: Full Swap cycle complete.")
-    await asyncio.sleep(60 * 60 * 12)
+    await timeout(60 * 60 * 18, 60 * 60 * 24)
 
 
 async def run_all(private_keys: list):
