@@ -33,9 +33,9 @@ GITHUB_USERNAME = data["GITHUB_USERNAME"]
 
 
 if PROXIES:
-    print(f"Proxies found in config file")
+    color_print(f"Proxies found in config file", 'GREEN')
 else:
-    print(f"Proxies NOT found in config file!")
+    color_print(f"Proxies NOT found in config file!", "RED")
     reply = input("Do you like to proceed with free proxies. Free proxies might be buggy (y/n): ")
 
 
@@ -93,23 +93,23 @@ def verify_github_star(repo_url, config_path='config.json'):
             is_starred = any(star['login'].lower() == github_username.lower() for star in stargazers)
 
             if is_starred:
-                print(f"✅ Verified! {github_username} has starred {repo_url}")
+                color_print(f"✅ Verified! {github_username} has starred {repo_url}", "GREEN")
                 return True
             else:
-                print(f"❌ Error: {github_username} has not starred {repo_url}")
+                color_print(f"❌ Error: {github_username} has not starred {repo_url}", "RED")
                 return False
         else:
-            print(f"❌ Failed to retrieve stargazers. Status code: {response.status_code}")
+            color_print(f"❌ Failed to retrieve stargazers. Status code: {response.status_code}", "RED")
             return False
 
     except requests.RequestException as e:
-        print(f"Network error: {e}")
+        color_print(f"Network error: {e}", "RED")
         return False
     except json.JSONDecodeError:
-        print(f"❌ Error parsing config file at {config_path}")
+        color_print(f"❌ Error parsing config file at {config_path}", "RED")
         return False
     except Exception as e:
-        print(f"An unexpected error occurred: {e}")
+        color_print(f"An unexpected error occurred: {e}", "RED")
         return False
 
 
