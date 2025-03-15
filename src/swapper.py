@@ -1,7 +1,7 @@
 import requests
 from web3 import Web3
 from typing import Dict, Any, Optional, List
-from logger import color_print
+from src.logger import color_print
 import logging
 import time
 
@@ -129,7 +129,10 @@ class MonadSwapper:
         for token in balances:
             if float(token['balance']) > 0:
                 symbol = token['symbol']
-                formatted_balance = round(float(token['balance']), 3)  # 3 decimal places
+                if symbol == "MON":
+                    formatted_balance = self.get_bal()
+                else:
+                    formatted_balance = round(float(token['balance']), 3)  # 3 decimal places
                 balance_parts.append(f"{formatted_balance} {symbol}")
 
         # Changed color_print to logging.info since color_print is not defined
@@ -422,3 +425,9 @@ class MonadSwapper:
             return token.lower()
 
         raise ValueError(f"Unknown token: {token}. Available tokens: {', '.join(self.TOKENS.keys())}")
+
+    def get_bal(self):
+        # get MON bal
+        balance = self.w3.eth.get_balance(self.wallet_address)
+        balance_eth = round(self.w3.from_wei(balance, 'ether'), 3)
+        return balance_eth

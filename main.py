@@ -11,5 +11,5 @@ else:
     raise Exception(f"Access denied. Please star the repository {repo_to_check} first.")
 
 
-private_keys = data["private_keys"][:1]
+private_keys = data["PRIVATE_KEYS"]
 asyncio.run(run_all(private_keys))

@@ -6,11 +6,11 @@ import random
 import requests
 import logging
 
-from proxies import get_free_proxy
-from swapper import MonadSwapper
-from staker import MonadStaker
+from src.proxies import get_free_proxy
+from src.swapper import MonadSwapper
+from src.staker import MonadStaker
 from web3.exceptions import Web3RPCError
-from logger import color_print
+from src.logger import color_print
 
 
 # Load data from the CONFIG file
@@ -24,11 +24,13 @@ except json.JSONDecodeError:
 
 
 RPC_URL = "https://testnet-rpc.monad.xyz"
-FUNDER_PRIVATE_KEY = data["funder_private_key"]
-FUND_AMT = data["fund_amount"]
-SWAP_CYCLES = data["daily_swap_cycles"]
-PROXIES = data["proxies"]
+FUNDER_PRIVATE_KEY = data["FUNDER_PRIVATE_KEY"]
+FUND_AMT = data["FUND_AMOUNT"]
+SWAP_CYCLES = data["DAILY_SWAP_CYCLES"]
 STAKE_CYCLES = data["STAKE_CYCLES"]
+PROXIES = data["PROXIES"]
+GITHUB_USERNAME = data["GITHUB_USERNAME"]
+
 
 if PROXIES:
     print(f"Proxies found in config file")
@@ -65,7 +67,7 @@ def verify_github_star(repo_url, config_path='config.json'):
             config = json.load(f)
 
         # Extract GitHub username from config
-        github_username = config.get('github_username')
+        github_username = GITHUB_USERNAME
 
         if not github_username:
             print("❌ GitHub username not found in config file")
@@ -233,7 +235,7 @@ async def stake_token(private_key, cycles=STAKE_CYCLES):
         except Exception as e:
             color_print(f"An error occurred within the infinite loop\n{e}", "RED")
             color_print(f"Restarting Monad staker...", "MAGENTA")
-            await asyncio.sleep(5)
+            await asyncio.sleep(1 * 60 * 60)
 
 
 async def run_all(private_keys: list):
