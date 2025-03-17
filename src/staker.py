@@ -1,7 +1,8 @@
 from src.logger import logging
+from src.swapper import MonadSwapper
 
 
-class MonadStaker:
+class MonadStaker(MonadSwapper):  # Inheriting from MonadSwapper
     def __init__(self, w3, private_key):
         """
         Initialize a MonadStaker with your private key
@@ -9,19 +10,7 @@ class MonadStaker:
         Args:
             private_key (str): Private key of the wallet to stake from
         """
-        # Connect to Monad testnet
-        # self.w3 = Web3(Web3.HTTPProvider("https://testnet-rpc.monad.xyz"))
-        self.w3 = w3
-        if not self.w3.is_connected():
-            raise Exception("Failed to connect to Monad network")
-
-        # Store private key
-        self.private_key = private_key
-
-        # Set up account from private key
-        self.account = self.w3.eth.account.from_key(private_key)
-        self.wallet_address = self.account.address
-        self.display_address = f"{self.wallet_address[:6]}...{self.wallet_address[-4:]}"
+        super().__init__(w3, private_key)  # Call parent constructor
 
         # Contract addresses
         self.kintsu_contract = "0x07AabD925866E8353407E67C1D157836f7Ad923e"
@@ -65,8 +54,6 @@ class MonadStaker:
         Returns:
             str: Transaction hash if successful, None otherwise
         """
-
-        # Create contract instance
         contract = self.w3.eth.contract(address=self.kintsu_contract, abi=self.kintsu_abi)
 
         # Convert amount to wei
@@ -136,7 +123,10 @@ class MonadStaker:
         tx_hash = self.w3.eth.send_raw_transaction(signed_txn.raw_transaction)
         tx_hash_hex = tx_hash.hex()
 
-        logging.info(f"Account {self.display_address}: Transaction sent! Hash: 0x{tx_hash_hex}")
+        nonce = transaction["nonce"]
+        mon_bal = self.get_bal()
+
+        logging.info(f"Account {self.display_address}: Bal {mon_bal} MON. Transaction #{nonce} sent! Hash: 0x{tx_hash_hex}")
 
         # Wait for transaction receipt
         tx_receipt = self.w3.eth.wait_for_transaction_receipt(tx_hash)
