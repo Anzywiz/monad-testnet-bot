@@ -127,7 +127,19 @@ def get_web3_connection():
 
 async def timeout(start=60, end=300):
     time_out = random.randint(start, end)
-    color_print(f"Awaiting {time_out}s timeout...", "GREEN", style="BRIGHT")
+
+    hours = time_out // 3600
+    minutes = (time_out % 3600) // 60
+    seconds = time_out % 60
+
+    if hours > 0:
+        time_str = f"{hours}h {minutes}m {seconds}s"
+    elif minutes > 0:
+        time_str = f"{minutes}m {seconds}s"
+    else:
+        time_str = f"{seconds}s"
+
+    color_print(f"Awaiting {time_str} timeout...", "GREEN", style="BRIGHT")
     await asyncio.sleep(time_out)
 
 
@@ -143,7 +155,7 @@ async def swap_tokens(private_key, cycles=SWAP_CYCLES):
             try:
                 rand_int = random.randint(1, 100)
                 random_swap_amt = f"0.000{rand_int}"
-                to_tokens = ['CHOG', 'DAK', 'YAKI', 'USDC', 'WMON']
+                to_tokens = ['CHOG', 'DAK', 'YAKI', 'WMON', "USDC"]
                 random_token = random.choice(to_tokens)
 
                 # Execute a swap (will sign and broadcast the transaction)
@@ -177,7 +189,7 @@ async def swap_tokens(private_key, cycles=SWAP_CYCLES):
         except Exception as e:
             color_print(f"An error occurred within the infinite loop\n{e}", "RED")
             color_print(f"Restarting Monad swapper...", "MAGENTA")
-            await asyncio.sleep(5)
+            await asyncio.sleep(1 * 60 * 60)
 
 
 async def stake_token(private_key, cycles=STAKE_CYCLES):
@@ -191,11 +203,11 @@ async def stake_token(private_key, cycles=STAKE_CYCLES):
                 # Define possible staking methods
                 staking_methods = ['magma_stake', 'apriori_stake', 'kintsu_stake']
 
-                method_name = random.choices(staking_methods, weights=[0.4, 0.4, 0.2])[0]
+                method_name = random.choices(staking_methods, weights=[0.48, 0.47, 0.05])[0]
 
                 if method_name == "kintsu_stake":
-                    # Get a random amount greater than 0.009
-                    rand_int = random.randint(1, 100)
+                    # Get a random amount greater than 0.01
+                    rand_int = random.randint(1, 3)
                     amount = float(f"0.0{rand_int}")
                 else:
                     amount = get_random_stake_amount()
@@ -207,15 +219,24 @@ async def stake_token(private_key, cycles=STAKE_CYCLES):
                 color_print(f"Prepping to stake {amount} MON on {method_name.split('_')[0]}")
                 staking_method(amount)
                 if method_name == "magma_stake":
-                    await timeout(10, 30)
+                    await timeout(30, 120)
+                    color_print(f"Prepping to Unstake {amount} MON on {method_name.split('_')[0]}")
                     staker.magma_unstake(amount)
+                # elif method_name == "kintsu_stake":
+                #     await timeout(30, 120)
+                #     # You cannot unstake on Kinstu yet
+                #     color_print(f"Prepping to Unstake {amount} sMON on {method_name.split('_')[0]} via Monorail swap")
+                #     tx_hash = staker.execute_swap(
+                #         amount=float(amount),
+                #         from_token="sMON",
+                #         to_token="MON")
 
                 count += 1
                 logging.info(f"Account {staker.display_address}: Stake count: {count}/{cycles}..")
 
                 if count >= cycles:
                     logging.info(f"Account {staker.display_address}: Full Swap cycle complete.")
-                    await timeout(60 * 60 * 1, 60 * 60 * 2)
+                    await timeout(60 * 60 * 4, 60 * 60 * 5)
                     count = 0  # Reset counter after waiting
                 else:
                     await timeout(60, 200)
