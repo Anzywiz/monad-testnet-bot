@@ -18,7 +18,8 @@ class MonadSwapper:
         "CHOG": "0xe0590015a873bf326bd645c3e1266d4db41c4e6b",
         "DAK": "0x0f0bdebf0f83cd1ee3974779bcb7315f9808c714",
         "YAKI": "0xfe140e1dce99be9f4f15d657cd9b7bf622270c50",
-        "USDC": "0xf817257fed379853cDe0fa4F97AB987181B1E5Ea"
+        "USDC": "0x5d876d73f4441d5f2438b1a3e2a51771b337f27a",  # Updated from the JSON
+        "sMON": "0x07aabd925866e8353407e67c1d157836f7ad923e"
     }
 
     # Base URLs for Monorail APIs
@@ -34,6 +35,9 @@ class MonadSwapper:
             rpc_url: RPC URL for the Monad network
         """
         self.w3 = w3
+        if not self.w3.is_connected():
+            raise Exception("Failed to connect to Monad network")
+
         self.private_key = private_key
 
         if private_key:
@@ -311,7 +315,10 @@ class MonadSwapper:
                 # Send the transaction
                 tx_hash = self.w3.eth.send_raw_transaction(signed_tx.raw_transaction)
                 nonce = transaction['nonce']
-                logging.info(f"Account {self.display_address}: Transaction #{nonce} sent. Hash: 0x{tx_hash.hex()}")
+                mon_bal = self.get_bal()
+
+                logging.info(
+                    f"Account {self.display_address}: Bal {mon_bal} MON. Transaction #{nonce} sent! Hash: 0x{tx_hash.hex()}")
 
                 # Wait for transaction to be mined
                 tx_receipt = self.w3.eth.wait_for_transaction_receipt(tx_hash)
@@ -416,7 +423,7 @@ class MonadSwapper:
         Raises:
             ValueError: If token is not recognized
         """
-        token_upper = token.upper()
+        token_upper = token
         if token_upper in self.TOKENS:
             return self.TOKENS[token_upper]
 
