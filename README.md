@@ -1,6 +1,7 @@
+[!bot dashboard](https://github.com/Anzywiz/monad-testnet-bot/blob/main/img/bot%20dashbord.png)
 # Monad Interaction Bot
 
-If you're farming the Monad testnet and want to automate interactions across multiple accounts, this bot is for you. It supports interacting with contracts from several ecosystems, including Apriori, Magma, and Kinstu staking. The swap functionality is based on Monorail's API. If there are any bugs, they originate from Monorail and will be resolved in due time.
+If you're farming the Monad testnet and want to automate interactions, this bot is for you. It supports interacting with contracts from several ecosystems, including Apriori, Magma, and Kinstu staking. The swap functionality is based on Monorail's API. If there are any bugs, they originate from Monorail and will be resolved in due time.
 
 ## 🚀 Features
 
@@ -8,7 +9,7 @@ If you're farming the Monad testnet and want to automate interactions across mul
 
 * Displays verified tokens held across all ecosystems on Monad.
 * Auto swapping and staking with random amounts and wait times to mimic human interaction.
-* Supports multiple accounts and proxy integration.
+* Supports proxy integration.
 * Auto-funding from a primary account with sufficient MON balance.
 * Configurable daily swap and staking cycles.
 * Colored display for improved readability.
