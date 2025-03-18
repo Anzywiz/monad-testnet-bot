@@ -1,4 +1,4 @@
-[!bot dashboard](https://github.com/Anzywiz/monad-testnet-bot/blob/main/img/bot%20dashbord.png)
+![bot dashboard](https://github.com/Anzywiz/monad-testnet-bot/blob/main/img/bot%20dashbord.png)
 # Monad Interaction Bot
 
 If you're farming the Monad testnet and want to automate interactions, this bot is for you. It supports interacting with contracts from several ecosystems, including Apriori, Magma, and Kinstu staking. The swap functionality is based on Monorail's API. If there are any bugs, they originate from Monorail and will be resolved in due time.
