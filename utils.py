@@ -6,9 +6,10 @@ import random
 import requests
 import logging
 
-from src.proxies import get_free_proxy
+from src.proxies import get_free_proxy, get_phantom_headers
 from src.swapper import MonadSwapper
 from src.staker import MonadStaker
+from src.ai_craft_fun import AiCraftFun
 from web3.exceptions import Web3RPCError
 from src.logger import color_print
 
@@ -115,13 +116,13 @@ def verify_github_star(repo_url, config_path='config.json'):
 
 def get_web3_connection():
     if PROXIES:
-        web3 = Web3(Web3.HTTPProvider(RPC_URL, request_kwargs={"proxies": {'https': PROXIES, 'http': PROXIES}}))
+        web3 = Web3(Web3.HTTPProvider(RPC_URL, request_kwargs={"headers": get_phantom_headers(), "proxies": {'https': PROXIES, 'http': PROXIES}}))
     else:
         if reply.lower() == 'y':
             free_proxies = get_free_proxy()['proxy']
-            web3 = Web3(Web3.HTTPProvider(RPC_URL, request_kwargs={"proxies": free_proxies}))
+            web3 = Web3(Web3.HTTPProvider(RPC_URL, request_kwargs={"proxies": free_proxies, "headers": get_phantom_headers()}))
         else:
-            web3 = Web3(Web3.HTTPProvider(RPC_URL))
+            web3 = Web3(Web3.HTTPProvider(RPC_URL, request_kwargs={"headers": get_phantom_headers()}))
     return web3
 
 
@@ -203,7 +204,7 @@ async def stake_token(private_key, cycles=STAKE_CYCLES):
                 # Define possible staking methods
                 staking_methods = ['magma_stake', 'apriori_stake', 'kintsu_stake']
 
-                method_name = random.choices(staking_methods, weights=[0.48, 0.47, 0.05])[0]
+                method_name = random.choices(staking_methods, weights=[0.49, 0.48, 0.03])[0]
 
                 if method_name == "kintsu_stake":
                     # Get a random amount greater than 0.01
@@ -235,7 +236,7 @@ async def stake_token(private_key, cycles=STAKE_CYCLES):
                 logging.info(f"Account {staker.display_address}: Stake count: {count}/{cycles}..")
 
                 if count >= cycles:
-                    logging.info(f"Account {staker.display_address}: Full Swap cycle complete.")
+                    logging.info(f"Account {staker.display_address}: Full Stake cycle complete.")
                     await timeout(60 * 60 * 4, 60 * 60 * 5)
                     count = 0  # Reset counter after waiting
                 else:
@@ -259,12 +260,59 @@ async def stake_token(private_key, cycles=STAKE_CYCLES):
             await asyncio.sleep(1 * 60 * 60)
 
 
+async def ai_craft_voting(private_key):
+    while True:  # Infinite loop, till you interrupt
+        try:
+            # Initialize the AiCraftFun class
+            ai_craft = AiCraftFun(get_web3_connection(), private_key)
+
+            try:
+                # Sign in with a referral code
+                ai_craft.sign_in(ref_code="ZFNMCQQDNC")
+
+                project_id = "678376133438e102d6ff5c6e"  # for all voting regions
+                # Display balances for a specific address
+                ai_craft.display_wallet_balances()
+
+                profile = ai_craft.get_user_info()
+                remaining_voting = profile['data']['todayFeedCount']
+                if remaining_voting >= 0:
+                    for vote in range(remaining_voting):
+                        logging.info(f"Account {ai_craft.display_address}: Prepping to vote..")
+                        ai_craft.vote_by_country(
+                            project_id=project_id,
+                            ref_code="ZFNMCQQDNC",
+                            country_code="NG"  # Nigeria
+                        )
+                        await timeout()  # Normal wait between swaps
+
+                    logging.info(f"Account {ai_craft.display_address}: Voting complete.")
+                    await timeout(60 * 60 * 24, 60 * 60 * 26)  # Long wait between cycles
+
+            except Web3RPCError as e:
+                if 'Signer had insufficient balance' in str(e):
+                    logging.warning(
+                     f"Account {ai_craft.display_address}: Signer had insufficient balance. Funding from Fund wallet..")
+                    # initialise funder
+                    funder = MonadSwapper(get_web3_connection(), FUNDER_PRIVATE_KEY)
+                    funder.send_base_tokens(ai_craft.wallet_address, FUND_AMT)
+                else:
+                    logging.error(f"Error {e}. Trying again..")
+                    await asyncio.sleep(5)
+
+        except Exception as e:
+            color_print(f"An error occurred within the infinite loop\n{e}", "RED")
+            color_print(f"Restarting AI CRAFT...", "MAGENTA")
+            await asyncio.sleep(1 * 60 * 60)
+
+
 async def run_all(private_keys: list):
     tasks = []  # Collect all tasks here
     for private_key in private_keys:
         tasks.append(asyncio.gather(
             swap_tokens(private_key),
             stake_token(private_key),
+            ai_craft_voting(private_key)
         ))
 
     # Run all tasks concurrently
