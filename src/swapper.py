@@ -4,6 +4,7 @@ from typing import Dict, Any, Optional, List
 from src.logger import color_print
 import logging
 import time
+from src.proxies import get_phantom_headers
 
 
 class MonadSwapper:
@@ -124,9 +125,6 @@ class MonadSwapper:
             x['symbol']  # Then alphabetically
         ))
 
-        # Format address for display (truncate middle)
-        display_address = f"{address[:6]}...{address[-4:]}"
-
         # Build the balance string
         balance_parts = []
 
@@ -141,7 +139,7 @@ class MonadSwapper:
 
         # Changed color_print to logging.info since color_print is not defined
         color_print(
-            f"Account {display_address}: Monad Testnet Ecosystem Token Balances: \n{' | '.join(balance_parts)}")
+            f"Account {self.wallet_address}: Monad Testnet Ecosystem Token Balances: \n{' | '.join(balance_parts)}")
 
     def get_swap_quote(self, amount: float, from_token: str, to_token: str,
                        sender_address: str, slippage: float = 1,
@@ -176,26 +174,12 @@ class MonadSwapper:
             "sender": sender_address
         }
 
-        headers = {
-            "content-type": "application/json",
-            "accept": "*/*",
-            "accept-encoding": "gzip, deflate, br, zstd",
-            "accept-language": "en-US,en;q=0.9",
-            "origin": "https://testnet-preview.monorail.xyz",
-            "priority": "u=1, i",
-            "referer": "https://testnet-preview.monorail.xyz/",
-            "sec-ch-ua": "\"Chromium\";v=\"134\", \"Not:A-Brand\";v=\"24\", \"Microsoft Edge\";v=\"134\"",
-            "sec-ch-ua-mobile": "?0",
-            "sec-ch-ua-platform": "\"Windows\"",
-            "sec-fetch-dest": "empty",
-            "sec-fetch-mode": "cors",
-            "sec-fetch-site": "same-site",
-            "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/134.0.0.0 Safari/537.36 Edg/134.0.0.0"
-        }
-
         # Make the GET request
-        response = requests.get(self.BASE_URL, params=params)
+        headers = get_phantom_headers()
+        headers["referer"] = "https://testnet-preview.monorail.xyz/"
+        headers['origin'] = "https://testnet-preview.monorail.xyz/"
 
+        response = requests.get(self.BASE_URL, params=params, headers=headers)
         if response.status_code != 200:
             raise Exception(f"API request failed with status {response.status_code}: {response.text}")
 
