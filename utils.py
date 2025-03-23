@@ -237,7 +237,7 @@ async def stake_token(private_key, cycles=STAKE_CYCLES):
 
                 if count >= cycles:
                     logging.info(f"Account {staker.display_address}: Full Stake cycle complete.")
-                    await timeout(60 * 60 * 4, 60 * 60 * 5)
+                    await timeout(60 * 60 * 20, 60 * 60 * 24)
                     count = 0  # Reset counter after waiting
                 else:
                     await timeout(60, 200)
