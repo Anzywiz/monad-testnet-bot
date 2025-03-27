@@ -190,7 +190,7 @@ async def swap_tokens(private_key, cycles=SWAP_CYCLES):
         except Exception as e:
             color_print(f"An error occurred within the infinite loop\n{e}", "RED")
             color_print(f"Restarting Monad swapper...", "MAGENTA")
-            await asyncio.sleep(1 * 60 * 60)
+            await timeout(12 * 60 * 60, 18 * 60 * 60)
 
 
 async def stake_token(private_key, cycles=STAKE_CYCLES):
