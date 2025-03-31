@@ -66,10 +66,16 @@ class AiCraftFun(MonadStaker):
             tx_hash_hex = '0x' + tx_hash.hex()
 
             # Wait for transaction to be mined
-            logging.info(f"Account {self.display_address}: Bal. {self.get_bal()} MON.  #{nonce} sent!: {tx_hash_hex}")
+            logging.info(f"Account {self.display_address}: Bal. {self.get_bal()} MON.  Tx #{nonce} sent!: {tx_hash_hex}")
             logging.info(f"Account {self.display_address}: Waiting for transaction to be mined...")
             receipt = self.w3.eth.wait_for_transaction_receipt(tx_hash, timeout=120)
-            logging.info(f"Account {self.display_address}: Transaction mined! Status: {'Success' if receipt.status == 1 else 'Failed'}")
+            gas_used = receipt.gasUsed
+            gas_price = self.w3.eth.gas_price
+            eth_spent = self.w3.from_wei(gas_used * gas_price, 'ether')
+
+            logging.info(
+                f"Account {self.display_address}: Transaction mined! "
+                f"Status: {'Success' if receipt.status == 1 else 'Failed'}. Fees: {eth_spent:.5f} MON")
 
             # Return transaction hash
             return tx_hash_hex
