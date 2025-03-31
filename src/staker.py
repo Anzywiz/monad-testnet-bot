@@ -129,13 +129,16 @@ class MonadStaker(MonadSwapper):  # Inheriting from MonadSwapper
         logging.info(f"Account {self.display_address}: Bal {mon_bal} MON. Transaction #{nonce} sent! Hash: 0x{tx_hash_hex}")
 
         # Wait for transaction receipt
-        tx_receipt = self.w3.eth.wait_for_transaction_receipt(tx_hash)
+        tx_receipt = self.w3.eth.wait_for_transaction_receipt(tx_hash, timeout=120)
+        gas_used = tx_receipt.gasUsed
+        gas_price = self.w3.eth.gas_price
+        eth_spent = self.w3.from_wei(gas_used * gas_price, 'ether')
 
         if tx_receipt["status"] == 1:
-            logging.info(f"Account {self.display_address}: Success! {success_message}")
+            logging.info(f"Account {self.display_address}: Success! {success_message}. Tx fees: {eth_spent:.5f} MON")
             return '0x' + tx_hash_hex
         else:
-            logging.error(f"Account {self.display_address}: Transaction failed")
+            logging.error(f"Account {self.display_address}: Transaction failed. Tx fees: {eth_spent:.5f} MON")
             return None
 
     def build_base_transaction(self):

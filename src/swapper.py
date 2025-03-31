@@ -77,12 +77,16 @@ class MonadSwapper:
         # Send the transaction
         tx_hash = self.w3.eth.send_raw_transaction(signed_tx.raw_transaction)
 
-        tx_receipt = self.w3.eth.wait_for_transaction_receipt(tx_hash)
+        tx_receipt = self.w3.eth.wait_for_transaction_receipt(tx_hash, timeout=120)
+        gas_used = tx_receipt.gasUsed
+        gas_price = self.w3.eth.gas_price
+        eth_spent = self.w3.from_wei(gas_used * gas_price, 'ether')
 
         if tx_receipt.status == 1:
-            logging.info(f"Account {self.display_address}: Successfully sent {amount_to_send} MON to {to_address}")
+            logging.info(f"Account {self.display_address}: "
+                         f"Successfully sent {amount_to_send} MON to {to_address}. Tx fees: {eth_spent:.5f} MON")
         else:
-            raise Exception(f"Account {self.display_address}: Token send failed!")
+            raise Exception(f"Account {self.display_address}: MON send failed!")
 
         return tx_hash.hex()
 
@@ -305,16 +309,18 @@ class MonadSwapper:
                     f"Account {self.display_address}: Bal {mon_bal} MON. Transaction #{nonce} sent! Hash: 0x{tx_hash.hex()}")
 
                 # Wait for transaction to be mined
-                tx_receipt = self.w3.eth.wait_for_transaction_receipt(tx_hash)
+                tx_receipt = self.w3.eth.wait_for_transaction_receipt(tx_hash, timeout=120)
+                gas_used = tx_receipt.gasUsed
+                eth_spent = self.w3.from_wei(gas_used * self.w3.eth.gas_price, 'ether')
 
                 # Check if transaction succeeded
                 if tx_receipt.status == 1:
                     logging.info(
-                        f"Account {self.display_address}: Successfully swapped {amount} {from_token} -> {expected_output} {to_token}")
+                        f"Account {self.display_address}: Successfully swapped {amount} {from_token} -> {expected_output} {to_token}. Tx fees: {eth_spent:.5f} MON")
                     return tx_hash.hex()
                 else:
                     logging.warning(
-                        f"Account {self.display_address}: Transaction mined but failed with status 0. Attempt {attempt}/{max_retries}. Hash: 0x{tx_hash.hex()}")
+                        f"Account {self.display_address}: Transaction mined but failed with status 0. Attempt {attempt}/{max_retries}. Hash: 0x{tx_hash.hex()}. Tx fees: {eth_spent:.5f} MON")
 
                     # On last retry, raise exception
                     if attempt == max_retries:
