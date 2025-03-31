@@ -76,7 +76,7 @@ class AiCraftFun(MonadStaker):
 
         except Exception as e:
             logging.error(f"Error in transaction: {str(e)}")
-            raise
+            raise e
 
     def get_sign_in_msg(self):
         """Get the sign-in message to be signed"""
@@ -196,60 +196,56 @@ class AiCraftFun(MonadStaker):
             ref_code=ref_code
         )
 
-        try:
-            # Extract necessary transaction data
-            payment_data = order_response['data']['payment']
-            contract_address = payment_data['contractAddress']
-            abi = payment_data['abi']
-            function_name = payment_data['functionName']
+        # Extract necessary transaction data
+        payment_data = order_response['data']['payment']
+        contract_address = payment_data['contractAddress']
+        abi = payment_data['abi']
+        function_name = payment_data['functionName']
 
-            # Extract the userHashedMessage and sign it
-            user_hashed_message = payment_data['params']['userHashedMessage']
+        # Extract the userHashedMessage and sign it
+        user_hashed_message = payment_data['params']['userHashedMessage']
 
-            # Sign the message using web3
-            signature = self.w3.eth.account.sign_message(
-                encode_defunct(hexstr=user_hashed_message),
-                private_key=self.private_key
-            ).signature
+        # Sign the message using web3
+        signature = self.w3.eth.account.sign_message(
+            encode_defunct(hexstr=user_hashed_message),
+            private_key=self.private_key
+        ).signature
 
-            # Prepare parameters for transaction with our signature
-            params = [
-                payment_data['params']['candidateID'],
-                payment_data['params']['feedAmount'],
-                payment_data['params']['requestID'],
-                payment_data['params']['requestData'],
-                signature,  # Use our own signature of the userHashedMessage
-                bytes.fromhex(payment_data['params']['integritySignature'][2:])
-            ]
+        # Prepare parameters for transaction with our signature
+        params = [
+            payment_data['params']['candidateID'],
+            payment_data['params']['feedAmount'],
+            payment_data['params']['requestID'],
+            payment_data['params']['requestData'],
+            signature,  # Use our own signature of the userHashedMessage
+            bytes.fromhex(payment_data['params']['integritySignature'][2:])
+        ]
 
-            contract_address = self.w3.to_checksum_address(contract_address)
+        contract_address = self.w3.to_checksum_address(contract_address)
 
-            # Send transaction to blockchain
-            tx_hash = self.send_transaction(
-                contract_address=contract_address,
-                abi=abi,
-                function_name=function_name,
-                params=params
-            )
+        # Send transaction to blockchain
+        tx_hash = self.send_transaction(
+            contract_address=contract_address,
+            abi=abi,
+            function_name=function_name,
+            params=params
+        )
 
-            # Confirm transaction in API
-            order_id = payment_data['params']['requestID']
-            confirmation = self.confirm_transaction(
-                order_id=order_id,
-                tx_hash=tx_hash,
-                ref_code=ref_code
-            )
+        # Confirm transaction in API
+        order_id = payment_data['params']['requestID']
+        confirmation = self.confirm_transaction(
+            order_id=order_id,
+            tx_hash=tx_hash,
+            ref_code=ref_code
+        )
 
-            if confirmation["statusCode"] == 201:
-                user_info = self.get_user_info()  # get updated points
+        if confirmation["statusCode"] == 201:
+            user_info = self.get_user_info()  # get updated points
 
-            points = user_info['data']["point"]
-            today_feed_count = user_info['data']["todayFeedCount"]
-            logging.info(f"Account {self.display_address}: Point {points} | Votes left {today_feed_count}")
-            return confirmation
-        except KeyError:
-            if order_response["description"] == "Exceed remaining feed count":
-                raise Exception(f"Cannot create order! You've exceeded your remaining vote count")
+        points = user_info['data']["point"]
+        today_feed_count = user_info['data']["todayFeedCount"]
+        logging.info(f"Account {self.display_address}: Point {points} | Votes left {today_feed_count}")
+        return confirmation
 
     def get_top_candidates(self, project_id, category=None, limit=10):
         """Get top candidates by feed count, optionally filtered by category"""
@@ -320,25 +316,17 @@ class AiCraftFun(MonadStaker):
         top_candidate = sorted(country_candidates, key=lambda x: x['feedCount'], reverse=True)[0]
 
         # Vote for the candidate
-        try:
-            result = self.vote_for_candidate(
-                candidate_id=top_candidate['_id'],
-                ref_code=ref_code,
-                feed_amount=feed_amount
-            )
-            return {
-                "success": True,
-                "country": country_code,
-                "candidate": top_candidate['name'],
-                "result": result
-            }
-        except Exception as e:
-            return {
-                "success": False,
-                "country": country_code,
-                "candidate": top_candidate['name'],
-                "error": str(e)
-            }
+        result = self.vote_for_candidate(
+            candidate_id=top_candidate['_id'],
+            ref_code=ref_code,
+            feed_amount=feed_amount
+        )
+        return {
+            "success": True,
+            "country": country_code,
+            "candidate": top_candidate['name'],
+            "result": result
+        }
 
     def daily_votes(self, project_id, ref_code, countries=None):
         """Use daily voting limit on specified countries or top candidates"""
