@@ -208,7 +208,7 @@ async def stake_token(private_key, cycles=STAKE_CYCLES):
 
                 if method_name == "kintsu_stake":
                     # Get a random amount greater than 0.01
-                    rand_int = random.randint(1, 3)
+                    rand_int = random.randint(1, 2)
                     amount = float(f"0.0{rand_int}")
                 else:
                     amount = get_random_stake_amount()
