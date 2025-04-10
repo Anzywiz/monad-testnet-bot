@@ -265,7 +265,6 @@ class MonadSwapper:
         # Updated to use the new estimate_max_output function
         estimate = self.estimate_max_output(from_token, to_token, amount)
         expected_output = estimate['output_amount']
-        hops = estimate['hops']
 
         # Build the transaction
         transaction = self.build_swap_transaction(amount, from_token, to_token, sender_address)
@@ -394,7 +393,6 @@ class MonadSwapper:
             'output_amount': float(quote['output']) / 10 ** 18,  # Convert from wei
             'min_output_amount': float(quote['min_output']) / 10 ** 18,  # Convert from wei
             'hops': quote['hops'],
-            'path': [route['from'] + ' → ' + route['to'] for route in quote['routes']],  # Construct path from routes
             'effective_price': float(quote['output']) / (float(quote['input']) or 1)  # Calculate price ratio
         }
 
