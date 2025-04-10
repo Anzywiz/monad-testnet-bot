@@ -27,10 +27,11 @@ except json.JSONDecodeError:
 RPC_URL = "https://testnet-rpc.monad.xyz"
 FUNDER_PRIVATE_KEY = data["FUNDER_PRIVATE_KEY"]
 FUND_AMT = data["FUND_AMOUNT"]
-SWAP_CYCLES = data["DAILY_SWAP_CYCLES"]
-STAKE_CYCLES = data["STAKE_CYCLES"]
+DAILY_SWAPS = data["DAILY_SWAPS"]
+DAILY_STAKES = data["DAILY_STAKES"]
 PROXIES = data["PROXIES"]
 GITHUB_USERNAME = data["GITHUB_USERNAME"]
+DAILY_VOTES = data["DAILY_VOTES"]
 
 
 if PROXIES:
@@ -144,7 +145,7 @@ async def timeout(start=60, end=300):
     await asyncio.sleep(time_out)
 
 
-async def swap_tokens(private_key, cycles=SWAP_CYCLES):
+async def swap_tokens(private_key, cycles=DAILY_SWAPS):
     count = 0
     while True:  # Infinite loop, till you interrupt
         try:
@@ -193,7 +194,7 @@ async def swap_tokens(private_key, cycles=SWAP_CYCLES):
             await timeout(12 * 60 * 60, 18 * 60 * 60)
 
 
-async def stake_token(private_key, cycles=STAKE_CYCLES):
+async def stake_token(private_key, cycles=DAILY_STAKES):
     count = 0
     while True:  # Infinite loop, till you interrupt
         try:
@@ -275,7 +276,11 @@ async def ai_craft_voting(private_key):
                 ai_craft.display_wallet_balances()
 
                 profile = ai_craft.get_user_info()
-                remaining_voting = profile['data']['todayFeedCount']
+                today_vote_count = profile['data']['todayFeedCount']
+                if today_vote_count > DAILY_VOTES:
+                    remaining_voting = DAILY_VOTES
+                else:
+                    remaining_voting = today_vote_count
                 if remaining_voting >= 0:
                     for vote in range(remaining_voting):
                         logging.info(f"Account {ai_craft.display_address}: Prepping to vote..")
@@ -284,6 +289,7 @@ async def ai_craft_voting(private_key):
                             ref_code="ZFNMCQQDNC",
                             country_code="NG"  # Nigeria
                         )
+                        logging.info(f"Account {ai_craft.display_address}: AI Craft vote success! ({vote+1})")
                         await timeout()  # Normal wait between swaps
 
                     logging.info(f"Account {ai_craft.display_address}: Voting complete.")
