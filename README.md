@@ -7,13 +7,19 @@ If you're farming the Monad testnet and want to automate interactions, this bot 
 ## 🚀 Features
 
 - Auto interaction across several Monad ecosystems.
+- Displays verified tokens held across all ecosystems on Monad.
+- Supports proxy integration.
+- Auto-funding from a primary account with sufficient MON balance.
+- Configurable daily swap, ai craft voting and staking cycles.
+- Colored UI and display.
 
-* Displays verified tokens held across all ecosystems on Monad.
-* Auto swapping and staking with random amounts and wait times to mimic human interaction.
-* Supports proxy integration.
-* Auto-funding from a primary account with sufficient MON balance.
-* Configurable daily swap and staking cycles.
-* Colored display for improved readability.
+## 🌐 Supported Ecosystems
+
+- Monorail (DeX)
+- AICraft.fun (AI)
+- Kintsu (staking)
+- Magma (staking)
+- apriori (staking)
 
 ## 📌 Setup
 
@@ -55,26 +61,29 @@ Create a `config.json` file in the project directory with the following structur
 ```json
 {
   "PRIVATE_KEYS": [
-      "0x123..."
+    "your_private_key1",
+    "your_private_key2"
   ],
-  "FUNDER_PRIVATE_KEY": "",
-  "PROXIES": "",
+  "FUNDER_PRIVATE_KEY": "funding_wallet_private_key",
+  "PROXIES": "http://user:pass@123.456.78.90:8080",
   "GITHUB_USERNAME": "",
   "FUND_AMOUNT": 0.5,
-  "DAILY_SWAP_CYCLES": 5,
-  "STAKE_CYCLES": 5
+  "DAILY_SWAPS": 1,
+  "DAILY_STAKES": 3,
+  "DAILY_VOTES": 20
 }
 ```
 
-- **PRIVATE\_KEYS**: List of private keys for the accounts you want to use.
-- **FUNDER\_PRIVATE\_KEY**: The private key of the account that will fund your other accounts with MON.
-- **PROXIES**: Proxy URL (if applicable) for enhanced anonymity. The format for proxies should be:
-  - Without authentication: `"proxies": "http://123.456.78.90:8080"`
-  - With authentication: `"proxies": "http://user:pass@123.456.78.90:8080"`
-- **GITHUB\_USERNAME**: Your GitHub username (starring the repo is required).
-- **FUND\_AMOUNT**: The amount of MON to send per funding cycle.
-- **DAILY\_SWAP\_CYCLES**: Number of swap transactions executed daily.
-- **STAKE\_CYCLES**: Number of staking transactions executed daily.
+| **Setting**           | **Description**                                                                 |
+|------------------------|---------------------------------------------------------------------------------|
+| `PRIVATE_KEYS`         | List of private keys for the accounts you want to use.                          |
+| `FUNDER_PRIVATE_KEY`   | Private key of the account that will fund other accounts with MON.              |
+| `PROXIES`              | Proxy URL for anonymity. Format:<br>• Without auth: `http://ip:port`<br>• With auth: `http://user:pass@ip:port` |
+| `GITHUB_USERNAME`      | Your GitHub username (used for starring the repo).                             |
+| `FUND_AMOUNT`          | Amount of MON (in SOL or native token) to send per funding cycle.              |
+| `DAILY_SWAPS`          | Number of swap transactions to perform daily.                                  |
+| `DAILY_STAKES`         | Number of staking transactions to perform daily.                               |
+| `DAILY_VOTES`          | Number of voting transactions to perform daily.                                |
 
 ### 5️⃣ Run the Bot
 
@@ -100,4 +109,3 @@ This project is licensed under the MIT License.
 I noticed that most Monad scripts create false interactions when I checked and verified the hash. This bot ensures genuine and verifiable interactions across multiple ecosystems.
 
 ⭐ Don't forget to star the repo if you find it useful! Your support helps keep the project growing! 😊
-
