@@ -8,10 +8,11 @@ If you're farming the Monad testnet and want to automate interactions, this bot 
 
 - Auto interaction across several Monad ecosystems.
 - Displays verified tokens held across all ecosystems on Monad.
-- Supports proxy integration.
+- Supports proxy integration as well as FREE proxies.
 - Auto-funding from a primary account with sufficient MON balance.
 - Configurable daily swap, ai craft voting and staking cycles.
 - Colored UI and display.
+  
 
 ## 🌐 Supported Ecosystems
 
@@ -65,8 +66,8 @@ Create a `config.json` file in the project directory with the following structur
     "your_private_key2"
   ],
   "FUNDER_PRIVATE_KEY": "funding_wallet_private_key",
-  "PROXIES": "http://user:pass@123.456.78.90:8080",
-  "GITHUB_USERNAME": "",
+  "PROXIES": null,
+  "GITHUB_USERNAME": "your_github_username",
   "FUND_AMOUNT": 0.5,
   "DAILY_SWAPS": 1,
   "DAILY_STAKES": 3,
@@ -78,9 +79,9 @@ Create a `config.json` file in the project directory with the following structur
 |------------------------|---------------------------------------------------------------------------------|
 | `PRIVATE_KEYS`         | List of private keys for the accounts you want to use.                          |
 | `FUNDER_PRIVATE_KEY`   | Private key of the account that will fund other accounts with MON.              |
-| `PROXIES`              | Proxy URL for anonymity. Format:<br>• Without auth: `http://ip:port`<br>• With auth: `http://user:pass@ip:port` |
+| `PROXIES`              | Proxy URL for anonymity. Format:<br>• Without auth: `http://ip:port`<br>• With auth: `http://user:pass@ip:port` <br>• Free/No proxy: `null`|
 | `GITHUB_USERNAME`      | Your GitHub username (used for starring the repo).                             |
-| `FUND_AMOUNT`          | Amount of MON (in SOL or native token) to send per funding cycle.              |
+| `FUND_AMOUNT`          | Amount of MON to send from funder account when insuffient.                     |
 | `DAILY_SWAPS`          | Number of swap transactions to perform daily.                                  |
 | `DAILY_STAKES`         | Number of staking transactions to perform daily.                               |
 | `DAILY_VOTES`          | Number of voting transactions to perform daily.                                |
@@ -92,6 +93,10 @@ python main.py
 ```
 
 ## 🔄 Updates
+
+```bash
+git pull
+```
 
 Stay tuned for updates and new features!
 
