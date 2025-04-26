@@ -81,7 +81,7 @@ Create a `config.json` file in the project directory with the following structur
 | `FUNDER_PRIVATE_KEY`   | Private key of the account that will fund other accounts with MON.              |
 | `PROXIES`              | Proxy URL for anonymity. Format:<br>• Without auth: `http://ip:port`<br>• With auth: `http://user:pass@ip:port` <br>• Free/No proxy: `null`|
 | `GITHUB_USERNAME`      | Your GitHub username (used for starring the repo).                             |
-| `FUND_AMOUNT`          | Amount of MON to send from funder account when insuffient.                     |
+| `FUND_AMOUNT`          | Amount of MON to send from funder account when others are insufficient.        |
 | `DAILY_SWAPS`          | Number of swap transactions to perform daily.                                  |
 | `DAILY_STAKES`         | Number of staking transactions to perform daily.                               |
 | `DAILY_VOTES`          | Number of voting transactions to perform daily.                                |
