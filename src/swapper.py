@@ -223,7 +223,8 @@ class MonadSwapper:
         # Let the node estimate the gas to avoid hardcoding
         try:
             transaction['gas'] = self.w3.eth.estimate_gas(transaction)
-        except Exception:
+        except Exception as e:
+            logging.error(f"Account {self.display_address}: Error estimating gas {e}")
             # Fallback to a conservative estimate if estimation fails
             transaction['gas'] = 300000
 
