@@ -9,6 +9,7 @@ env/
 # Environment variables and configuration files
 *.env
 config.json
+private_keys.txt
 
 # Logs
 *.log
