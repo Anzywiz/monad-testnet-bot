@@ -1,51 +1,67 @@
 import asyncio
-import os
 import json
-from web3 import Web3
-import random
+from web3 import Web3, AsyncWeb3
 import requests
-import logging
+import random
+import os
+from pathlib import Path
+from logger import color_print
+from proxies import get_free_proxy
+from headers import get_phantom_headers
 
-from src.proxies import get_free_proxy, get_phantom_headers
-from src.swapper import MonadSwapper
-from src.staker import MonadStaker
-from src.ai_craft_fun import AiCraftFun
-from web3.exceptions import Web3RPCError
-from src.logger import color_print
+BASE_DIR = Path(os.path.dirname(os.path.abspath(__file__)))
+
+
+def get_config_path():
+    # Find the base directory (where config.json should be)
+    base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    # For utils.py at the base level
+    if os.path.basename(base_dir) != 'monad-testnet-bot':
+        base_dir = os.path.dirname(os.path.abspath(__file__))
+
+    return os.path.join(base_dir, 'config.json')
 
 
 # Load data from the CONFIG file
 try:
-    with open('config.json', "r") as file:
+    with open(get_config_path(), "r") as file:
         data = json.load(file)
 except FileNotFoundError:
     raise FileNotFoundError(f"config.json file does not exist. Create one")
 except json.JSONDecodeError:
     raise ValueError(f"The config file is not a valid JSON file.")
 
+# load private keys
+try:
+    with open(BASE_DIR/"private_keys.txt", "r") as f:
+        private_keys_ = [line.strip() for line in f if line.strip()]
+except FileNotFoundError:
+    raise FileNotFoundError("File private_keys.txt not found!")
+
+if not private_keys_:
+    raise Exception("ERROR: No private keys found in private_keys.txt!", "RED")
+
+# Get range from config
+start, end = data.get("PRIVATE_KEYS_RANGE", [0, len(private_keys_)])
+
+# Validate range
+if not (0 <= start < end <= len(private_keys_)):
+    print("Invalid PRIVATE_KEYS_RANGE, using full list.")
+    selected_keys = private_keys_
+else:
+    selected_keys = private_keys_[start-1:end]
+
+private_keys = selected_keys
 
 RPC_URL = "https://testnet-rpc.monad.xyz"
-FUNDER_PRIVATE_KEY = data["FUNDER_PRIVATE_KEY"]
-FUND_AMT = data["FUND_AMOUNT"]
-DAILY_SWAPS = data["DAILY_SWAPS"]
-DAILY_STAKES = data["DAILY_STAKES"]
 PROXIES = data["PROXIES"]
 GITHUB_USERNAME = data["GITHUB_USERNAME"]
-DAILY_VOTES = data["DAILY_VOTES"]
-
 
 if PROXIES:
     color_print(f"Proxies found in config file", 'GREEN')
 else:
     color_print(f"Proxies NOT found in config file!", "RED")
     reply = input("Do you like to proceed with free proxies. Free proxies might be buggy (y/n): ")
-
-
-def get_random_stake_amount():
-    # Generate a random value between 0.0001 and 0.001
-    rand_int = random.randint(1, 100)
-    random_swap_amt = float(f"0.000{rand_int}")
-    return random_swap_amt
 
 
 def verify_github_star(repo_url, config_path='config.json'):
@@ -115,16 +131,43 @@ def verify_github_star(repo_url, config_path='config.json'):
         return False
 
 
-def get_web3_connection():
+def get_web3_connection(use_async=False):
+    """Get Web3 connection with optional async support.
+
+    Args:
+        use_async (bool): Whether to use AsyncWeb3 instead of regular Web3
+
+    Returns:
+        Web3 or AsyncWeb3 instance
+    """
+    request_kwargs = {"headers": get_phantom_headers()}
+
     if PROXIES:
-        web3 = Web3(Web3.HTTPProvider(RPC_URL, request_kwargs={"headers": get_phantom_headers(), "proxies": {'https': PROXIES, 'http': PROXIES}}))
+        request_kwargs["proxies"] = {'https': PROXIES, 'http': PROXIES}
     else:
         if reply.lower() == 'y':
             free_proxies = get_free_proxy()['proxy']
-            web3 = Web3(Web3.HTTPProvider(RPC_URL, request_kwargs={"proxies": free_proxies, "headers": get_phantom_headers()}))
-        else:
-            web3 = Web3(Web3.HTTPProvider(RPC_URL, request_kwargs={"headers": get_phantom_headers()}))
-    return web3
+            request_kwargs["proxies"] = free_proxies
+
+    if use_async:
+        # For AsyncWeb3, convert 'proxies' to 'proxy'
+        if "proxies" in request_kwargs:
+            # Get the proxy value (either from dict or directly)
+            proxy_value = request_kwargs["proxies"]
+            if isinstance(proxy_value, dict) and "http" in proxy_value:
+                proxy_value = proxy_value["http"]
+
+            # Replace 'proxies' with 'proxy'
+            request_kwargs["proxy"] = proxy_value
+            del request_kwargs["proxies"]
+
+        # For AsyncWeb3
+        provider = AsyncWeb3.AsyncHTTPProvider(RPC_URL, request_kwargs=request_kwargs)
+        return AsyncWeb3(provider)
+    else:
+        # For regular Web3
+        provider = Web3.HTTPProvider(RPC_URL, request_kwargs=request_kwargs)
+        return Web3(provider)
 
 
 async def timeout(start=60, end=300):
@@ -141,185 +184,5 @@ async def timeout(start=60, end=300):
     else:
         time_str = f"{seconds}s"
 
-    color_print(f"Awaiting {time_str} timeout...", "GREEN", style="BRIGHT")
+    color_print(f"⏳ Waiting {time_str} ...", "GREEN", style="BRIGHT")
     await asyncio.sleep(time_out)
-
-
-async def swap_tokens(private_key, cycles=DAILY_SWAPS):
-    count = 0
-    while True:  # Infinite loop, till you interrupt
-        try:
-            # Initialize the swapper
-            swapper = MonadSwapper(get_web3_connection(), private_key)
-            # Display balances for a specific address
-            swapper.display_wallet_balances()
-
-            try:
-                rand_int = random.randint(1, 100)
-                random_swap_amt = f"0.000{rand_int}"
-                to_tokens = ['CHOG', 'DAK', 'YAKI', 'WMON', "USDC"]
-                random_token = random.choice(to_tokens)
-
-                # Execute a swap (will sign and broadcast the transaction)
-                tx_hash = swapper.execute_swap(
-                    amount=float(random_swap_amt),
-                    from_token="MON",
-                    to_token=random_token
-                )
-                count += 1
-                logging.info(f"Account {swapper.display_address}: Swap count: {count}/{cycles}..")
-
-                # Check if cycle is complete
-                if count >= cycles:
-                    logging.info(f"Account {swapper.display_address}: Full Swap cycle complete.")
-                    await timeout(60 * 60 * 18, 60 * 60 * 24)  # Long wait between cycles
-                    count = 0  # Reset counter after waiting
-                else:
-                    await timeout()  # Normal wait between swaps
-
-            except Web3RPCError as e:
-                if 'Signer had insufficient balance' in str(e):
-                    logging.warning(
-                        f"Account {swapper.display_address}: Signer had insufficient balance. Funding from Fund wallet..")
-                    # initialise funder
-                    funder = MonadSwapper(get_web3_connection(), FUNDER_PRIVATE_KEY)
-                    funder.send_base_tokens(swapper.wallet_address, FUND_AMT)
-                else:
-                    logging.error(f"Error {e}. Trying again..")
-                    await asyncio.sleep(5)
-
-        except Exception as e:
-            color_print(f"An error occurred within the infinite loop\n{e}", "RED")
-            color_print(f"Restarting Monad swapper...", "MAGENTA")
-            await timeout(12 * 60 * 60, 18 * 60 * 60)
-
-
-async def stake_token(private_key, cycles=DAILY_STAKES):
-    count = 0
-    while True:  # Infinite loop, till you interrupt
-        try:
-            # Initialize the swapper
-            staker = MonadStaker(get_web3_connection(), private_key)
-
-            try:
-                # Define possible staking methods
-                staking_methods = ['magma_stake', 'apriori_stake', 'kintsu_stake']
-
-                method_name = random.choices(staking_methods, weights=[0.49, 0.48, 0.03])[0]
-
-                if method_name == "kintsu_stake":
-                    # Get a random amount greater than 0.01
-                    rand_int = random.randint(1, 2)
-                    amount = float(f"0.0{rand_int}")
-                else:
-                    amount = get_random_stake_amount()
-
-                # Get the method from the staker object
-                staking_method = getattr(staker, method_name)
-
-                # Call the selected staking method with the amount
-                color_print(f"Prepping to stake {amount} MON on {method_name.split('_')[0]}")
-                staking_method(amount)
-                if method_name == "magma_stake":
-                    await timeout(30, 120)
-                    color_print(f"Prepping to Unstake {amount} MON on {method_name.split('_')[0]}")
-                    staker.magma_unstake(amount)
-                # elif method_name == "kintsu_stake":
-                #     await timeout(30, 120)
-                #     # You cannot unstake on Kinstu yet
-                #     color_print(f"Prepping to Unstake {amount} sMON on {method_name.split('_')[0]} via Monorail swap")
-                #     tx_hash = staker.execute_swap(
-                #         amount=float(amount),
-                #         from_token="sMON",
-                #         to_token="MON")
-
-                count += 1
-                logging.info(f"Account {staker.display_address}: Stake count: {count}/{cycles}..")
-
-                if count >= cycles:
-                    logging.info(f"Account {staker.display_address}: Full Stake cycle complete.")
-                    await timeout(60 * 60 * 20, 60 * 60 * 24)
-                    count = 0  # Reset counter after waiting
-                else:
-                    await timeout(60, 200)
-
-            except Web3RPCError as e:
-                # Error handling as before
-                if 'Signer had insufficient balance' in str(e):
-                    logging.warning(
-                        f"Account {staker.display_address}: Signer had insufficient balance. Funding from Fund wallet..")
-                    # initialise funder
-                    funder = MonadSwapper(get_web3_connection(), FUNDER_PRIVATE_KEY)
-                    funder.send_base_tokens(staker.wallet_address, FUND_AMT)
-                else:
-                    logging.error(f"Error {e}. Trying again..")
-                    await asyncio.sleep(5)
-
-        except Exception as e:
-            color_print(f"An error occurred within the infinite loop\n{e}", "RED")
-            color_print(f"Restarting Monad staker...", "MAGENTA")
-            await asyncio.sleep(1 * 60 * 60)
-
-
-async def ai_craft_voting(private_key):
-    while True:  # Infinite loop, till you interrupt
-        try:
-            # Initialize the AiCraftFun class
-            ai_craft = AiCraftFun(get_web3_connection(), private_key)
-
-            try:
-                # Sign in with a referral code
-                ai_craft.sign_in(ref_code="ZFNMCQQDNC")
-
-                project_id = "678376133438e102d6ff5c6e"  # for all voting regions
-                # Display balances for a specific address
-                ai_craft.display_wallet_balances()
-
-                profile = ai_craft.get_user_info()
-                today_vote_count = profile['data']['todayFeedCount']
-                if today_vote_count > DAILY_VOTES:
-                    remaining_voting = DAILY_VOTES
-                else:
-                    remaining_voting = today_vote_count
-                if remaining_voting >= 0:
-                    for vote in range(remaining_voting):
-                        logging.info(f"Account {ai_craft.display_address}: Prepping to vote..")
-                        ai_craft.vote_by_country(
-                            project_id=project_id,
-                            ref_code="ZFNMCQQDNC",
-                            country_code="NG"  # Nigeria
-                        )
-                        logging.info(f"Account {ai_craft.display_address}: AI Craft vote success! ({vote+1})")
-                        await timeout()  # Normal wait between swaps
-
-                    logging.info(f"Account {ai_craft.display_address}: Voting complete.")
-                    await timeout(60 * 60 * 24, 60 * 60 * 26)  # Long wait between cycles
-
-            except Web3RPCError as e:
-                if 'Signer had insufficient balance' in str(e):
-                    logging.warning(
-                     f"Account {ai_craft.display_address}: Signer had insufficient balance. Funding from Fund wallet..")
-                    # initialise funder
-                    funder = MonadSwapper(get_web3_connection(), FUNDER_PRIVATE_KEY)
-                    funder.send_base_tokens(ai_craft.wallet_address, FUND_AMT)
-                else:
-                    logging.error(f"Error {e}. Trying again..")
-                    await asyncio.sleep(5)
-
-        except Exception as e:
-            color_print(f"An error occurred within the infinite loop\n{e}", "RED")
-            color_print(f"Restarting AI CRAFT...", "MAGENTA")
-            await asyncio.sleep(1 * 60 * 60)
-
-
-async def run_all(private_keys: list):
-    tasks = []  # Collect all tasks here
-    for private_key in private_keys:
-        tasks.append(asyncio.gather(
-            swap_tokens(private_key),
-            stake_token(private_key),
-            ai_craft_voting(private_key)
-        ))
-
-    # Run all tasks concurrently
-    await asyncio.gather(*tasks)
