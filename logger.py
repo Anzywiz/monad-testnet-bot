@@ -1,6 +1,5 @@
 from colorama import Fore, Back, Style
 import colorlog
-import logging
 
 
 def color_print(text, color="BLUE", background=None, style=None):
