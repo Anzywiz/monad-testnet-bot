@@ -1,23 +1,34 @@
 # Monad Interaction Bot
 
-If you're farming the Monad testnet and want to automate interactions, this bot is for you. It supports interacting with contracts from several ecosystems, including Apriori, Magma, and Kinstu staking. The swap functionality is based on Monorail's API. If there are any bugs, they originate from Monorail and will be resolved in due time.
-
-![bot dashboard](https://github.com/Anzywiz/monad-testnet-bot/blob/main/img/bot%20dashbord.png)
+If you're farming the Monad testnet and want to automate interactions across multiple dApps, this bot is for you. It supports daily interactions, staking, voting, NFT minting and more on key Monad ecosystem protocols. The bot integrates proxy support, and enables selective dApp interaction through a flexible configuration.
 
 ## 🚀 Features
 
-- Auto interaction across several Monad ecosystems.
+* Auto interaction across selected Monad dApps.
+* Supports daily voting, staking, and swapping.
+* Proxy integration (including free proxies).
+* Auto-funding accounts with low MON balances.
+* Filter accounts to farm using `PRIVATE_KEYS_RANGE`.
+* Customize interaction frequency per dApp.
+* Clean colored UI for enhanced visibility.
 
-* Displays verified tokens held across all ecosystems on Monad.
-* Auto swapping and staking with random amounts and wait times to mimic human interaction.
-* Supports proxy integration.
-* Auto-funding from a primary account with sufficient MON balance.
-* Configurable daily swap and staking cycles.
-* Colored display for improved readability.
+## 🌐 Supported Ecosystems (from `SCRIPTS`)
+
+* **Ambient** – Swap on Ambient.
+* **AICraft.fun** – Login/create account using referral and vote based on random countries.
+* **Apriori** – Stake/unstake MON tokens.
+* **Bean** – Perform daily swaps.
+* **Bebop** – Perform daily swaps.
+* **Izumi** – Perform daily swaps.
+* **Kintsu** – Stake/unstake MON tokens.
+* **LilChogsters** – Interact and Mint on the NFT platform.
+* **Magma** – Stake/unstake MON tokens.
+* **Monorail** – Use Monorail's API for token swaps.
+* **Rubic** – Perform daily swaps.
+* **Uniswap** – Perform daily swaps.
+* **Zona Finance** – Random daily betting with 1-hour duration: [https://app.zona.finance/](https://app.zona.finance/)
 
 ## 📌 Setup
-
-Follow these steps to set up and run the bot.
 
 ### 1️⃣ Clone the Repository
 
@@ -48,35 +59,62 @@ source venv/bin/activate
 pip install -r requirements.txt
 ```
 
-### 4️⃣ Configure the Bot
+### 4️⃣ Add Your Private Keys
 
-Create a `config.json` file in the project directory with the following structure:
+Create a `private_keys.txt` file in the base directory. Place one private key per line for each account you want to farm.
+
+### 5️⃣ Configure the Bot
+
+Create a `config.json` file in the project root with the following structure:
 
 ```json
 {
-  "PRIVATE_KEYS": [
-      "0x123..."
-  ],
-  "FUNDER_PRIVATE_KEY": "",
-  "PROXIES": "",
-  "GITHUB_USERNAME": "",
+  "SCRIPTS": ["monorail", "stakers", "aicraft", "ambient", "bean", "bebop", "izumi", "lilchogsters", "rubic", "uniswap", "zona"],
+  "PRIVATE_KEYS_RANGE": [1, 2],
+  "FUNDER_PRIVATE_KEY": "your funding account pk",
   "FUND_AMOUNT": 0.5,
-  "DAILY_SWAP_CYCLES": 5,
-  "STAKE_CYCLES": 5
+  "PROXIES": "",
+  "GITHUB_USERNAME": "your github username",
+  "STAKERS": ["magma", "apriori", "kintsu"],
+  "AICRAFT": {
+    "dailyVotes": 20,
+    "referralCode": null,
+    "countryCodeToVote": ["IN", "US", "ID", "PK", "NG", "BR"]
+  },
+  "DAILY_INTERACTION": {
+    "DEX": {
+      "ambient": 1,
+      "bean": 1,
+      "bebop": 1,
+      "izumi": 1,
+      "monorail": 1,
+      "rubic": 1,
+      "uniswap": 1
+    },
+    "STAKERS": 1
+  }
 }
 ```
 
-- **PRIVATE\_KEYS**: List of private keys for the accounts you want to use.
-- **FUNDER\_PRIVATE\_KEY**: The private key of the account that will fund your other accounts with MON.
-- **PROXIES**: Proxy URL (if applicable) for enhanced anonymity. The format for proxies should be:
-  - Without authentication: `"proxies": "http://123.456.78.90:8080"`
-  - With authentication: `"proxies": "http://user:pass@123.456.78.90:8080"`
-- **GITHUB\_USERNAME**: Your GitHub username (starring the repo is required).
-- **FUND\_AMOUNT**: The amount of MON to send per funding cycle.
-- **DAILY\_SWAP\_CYCLES**: Number of swap transactions executed daily.
-- **STAKE\_CYCLES**: Number of staking transactions executed daily.
+### 🔍 Config Description Table
 
-### 5️⃣ Run the Bot
+| **Setting**                 | **Description**                                                                         |
+| --------------------------- | --------------------------------------------------------------------------------------- |
+| `SCRIPTS`                   | List of dApps to interact with. Remove any dApp to skip interaction with it.            |
+| `private_keys.txt`          | File containing private keys. One key per line.                                         |
+| `PRIVATE_KEYS_RANGE`        | Index range (1-based) of keys from `private_keys.txt` to use. Leave blank to use all.   |
+| `FUNDER_PRIVATE_KEY`        | Private key for the funding wallet.                                                     |
+| `FUND_AMOUNT`               | Amount of MON to send to low-balance accounts.                                          |
+| `PROXIES`                   | Proxy URL (leave blank for no proxy). Supports auth and free proxies.                   |
+| `GITHUB_USERNAME`           | Used for starring the repo.                                                             |
+| `STAKERS`                   | List of staking dApps to interact with. Remove items or the whole list to skip staking. |
+| `AICRAFT.dailyVotes`        | Number of votes to cast daily on AICraft. Max is 20.                                               |
+| `AICRAFT.referralCode`      | Referral code to use for new AICraft account registrations.                             |
+| `AICRAFT.countryCodeToVote` | List of country codes to vote for.                                                      |
+| `DAILY_INTERACTION.DEX`     | Dict of DEX dApps with number of daily swaps per DEX.                                   |
+| `DAILY_INTERACTION.STAKERS` | Number of staking/unstaking actions to perform daily.                                   |
+
+### 6️⃣ Run the Bot
 
 ```bash
 python main.py
@@ -84,12 +122,16 @@ python main.py
 
 ## 🔄 Updates
 
-Stay tuned for updates and new features!
+```bash
+git pull
+```
+
+Check regularly for the latest features and fixes.
 
 ## 🛠 Issues & Contributions
 
-- If you encounter any issues, report them in the Issues section.
-- Want to improve the bot? Fork the repository, make your changes, and submit a pull request!
+* Encounter a bug? Report it in the Issues section.
+* Want to contribute? Fork the repo, make changes, and submit a pull request.
 
 ## 📜 License
 
@@ -97,7 +139,6 @@ This project is licensed under the MIT License.
 
 ## 🤔 Why This Bot?
 
-I noticed that most Monad scripts create false interactions when I checked and verified the hash. This bot ensures genuine and verifiable interactions across multiple ecosystems.
+Many existing Monad scripts produce fake or unverifiable interactions. This bot ensures your activities across dApps are legitimate and recorded on-chain, boosting your eligibility in testnet evaluations.
 
-⭐ Don't forget to star the repo if you find it useful! Your support helps keep the project growing! 😊
-
+⭐ If you find this helpful, please star the repo!
