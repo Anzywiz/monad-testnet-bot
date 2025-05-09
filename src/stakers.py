@@ -1,8 +1,30 @@
-from src.logger import logging
-from src.swapper import MonadSwapper
+"""Programmatically stake on several some dApps (Kinstu, apriori, magma)"""
+
+from src.monorail import MonorailSwapper
+import asyncio
+import random
+import logging
+from web3.exceptions import Web3RPCError
+
+from utils import timeout, get_web3_connection, private_keys, data
+from logger import color_print
+
+# Constants
+DAILY_STAKES = data["DAILY_INTERACTION"]["STAKERS"]
+FUND_AMT = data["FUND_AMOUNT"]
+FUNDER_PRIVATE_KEY = data["FUNDER_PRIVATE_KEY"]
+STAKERS = data["STAKERS"]
+STAKING_METHODS = [f"{i}_stake" for i in STAKERS]
 
 
-class MonadStaker(MonadSwapper):  # Inheriting from MonadSwapper
+def get_random_stake_amount():
+    # Generate a random value between 0.0001 and 0.001
+    rand_int = random.randint(1, 100)
+    random_swap_amt = float(f"0.000{rand_int}")
+    return random_swap_amt
+
+
+class MonadStaker(MonorailSwapper):  # Inheriting attributes and method from MonadSwapper
     def __init__(self, w3, private_key):
         """
         Initialize a MonadStaker with your private key
@@ -126,7 +148,7 @@ class MonadStaker(MonadSwapper):  # Inheriting from MonadSwapper
         nonce = transaction["nonce"]
         mon_bal = self.get_bal()
 
-        logging.info(f"Account {self.display_address}: Bal {mon_bal} MON. Transaction #{nonce} sent! Hash: 0x{tx_hash_hex}")
+        logging.info(f"👤 {self.display_address}: Bal {mon_bal} MON. Transaction #{nonce} sent! Hash: 0x{tx_hash_hex}")
 
         # Wait for transaction receipt
         tx_receipt = self.w3.eth.wait_for_transaction_receipt(tx_hash, timeout=120)
@@ -135,10 +157,10 @@ class MonadStaker(MonadSwapper):  # Inheriting from MonadSwapper
         eth_spent = self.w3.from_wei(gas_used * gas_price, 'ether')
 
         if tx_receipt["status"] == 1:
-            logging.info(f"Account {self.display_address}: Success! {success_message}. Tx fees: {eth_spent:.5f} MON")
+            logging.info(f"👤 {self.display_address}: Success! {success_message}. Tx fees: {eth_spent:.5f} MON")
             return '0x' + tx_hash_hex
         else:
-            logging.error(f"Account {self.display_address}: Transaction failed. Tx fees: {eth_spent:.5f} MON")
+            logging.error(f"👤 {self.display_address}: Transaction failed. Tx fees: {eth_spent:.5f} MON")
             return None
 
     def build_base_transaction(self):
@@ -153,7 +175,7 @@ class MonadStaker(MonadSwapper):  # Inheriting from MonadSwapper
             'maxPriorityFeePerGas': self.w3.to_wei(2, 'gwei'),
             'nonce': nonce,
             'chainId': self.w3.eth.chain_id,
-            'type': 2,  # EIP-1559 transaction
+            'type': 2
         }
         return txn
 
@@ -201,3 +223,94 @@ class MonadStaker(MonadSwapper):  # Inheriting from MonadSwapper
 
         # Sign and send transaction
         return self._sign_and_send_transaction(txn, f"Un-staked {amount_to_unstake} gMON for MON via Magma")
+
+
+async def stake_token(private_key, cycles=DAILY_STAKES):
+    count = 0
+    while True:  # Infinite loop, till you interrupt
+        try:
+            # Initialize the swapper
+            staker = MonadStaker(get_web3_connection(), private_key)
+
+            try:
+                # Define possible staking methods
+                staking_methods = STAKING_METHODS
+                if not staking_methods:
+                    return
+                random.shuffle(staking_methods)
+                for method_name in staking_methods:
+                    if method_name == "kintsu_stake":
+                        # Get a random amount greater than 0.01
+                        rand_int = random.randint(1, 2)
+                        amount = float(f"0.0{rand_int}")
+                    else:
+                        amount = get_random_stake_amount()
+
+                    # Get the method from the staker object
+                    staking_method = getattr(staker, method_name)
+
+                    # Call the selected staking method with the amount
+                    color_print(f"Prepping to stake {amount} MON on {method_name.split('_')[0]}")
+                    staking_method(amount)
+                    if method_name == "magma_stake":
+                        await timeout(30, 120)
+                        color_print(f"Prepping to Unstake {amount} MON on {method_name.split('_')[0]}")
+                        staker.magma_unstake(amount)
+
+                # after all thestaking for loop has been completed
+                count += 1
+                logging.info(f"👤 {staker.display_address}: Stake count: {count}/{cycles}..")
+
+                if count >= cycles:
+                    logging.info(f"👤 {staker.display_address}: Full Stake cycle complete.")
+                    return
+                else:
+                    await timeout(60, 200)
+
+            except Web3RPCError as e:
+                # Error handling as before
+                if 'Signer had insufficient balance' in str(e):
+                    logging.warning(
+                        f"👤 {staker.display_address}: Signer had insufficient balance. Funding from Fund wallet..")
+                    # initialise funder
+                    funder = MonadStaker(get_web3_connection(), FUNDER_PRIVATE_KEY)
+                    funder.send_base_tokens(staker.wallet_address, FUND_AMT)
+                else:
+                    logging.error(f"Error {e}. Trying again..")
+                    await asyncio.sleep(5)
+
+        except Exception as e:
+            color_print(f"An error occurred within the infinite loop\n{e}", "RED")
+            color_print(f"Restarting Monad staker...", "MAGENTA")
+            await asyncio.sleep(1 * 60 * 60)
+
+
+async def run():
+    """Run staker with multiple private keys from private_keys.txt."""
+
+    if not private_keys:
+        logging.error("No private keys found in private_keys.txt!")
+        color_print("ERROR: No private keys found in private_keys.txt!", "RED")
+        return
+
+    color_print(f"Starting Monad Staker with {len(private_keys)} accounts...", "GREEN")
+
+    # Create tasks for each private key
+    tasks = []
+    for private_key in private_keys:
+        tasks.append(stake_token(private_key))
+
+    # Run all tasks concurrently
+    await asyncio.gather(*tasks)
+
+
+if __name__ == "__main__":
+
+    print("Starting Monad staker script...")
+    try:
+        asyncio.run(run())
+    except KeyboardInterrupt:
+        print("\nScript stopped by user")
+    except Exception as e:
+        logging.critical(f"Fatal error: {str(e)}")
+        print(f"\nFatal error: {str(e)}")

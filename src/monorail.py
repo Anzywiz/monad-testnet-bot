@@ -1,13 +1,20 @@
 import requests
 from web3 import Web3
 from typing import Dict, Any, Optional, List
-from src.logger import color_print
-import logging
 import time
-from src.proxies import get_phantom_headers
+import asyncio
+import random
+import logging
+
+from utils import timeout, color_print, get_web3_connection, get_phantom_headers, data, private_keys
+
+# Constants
+DAILY_SWAPS = data["DAILY_INTERACTION"]["DEX"]["monorail"]
+FUND_AMT = data["FUND_AMOUNT"]
+FUNDER_PRIVATE_KEY = data["FUNDER_PRIVATE_KEY"]
 
 
-class MonadSwapper:
+class MonorailSwapper:
     """
     A client for performing token swaps on Monad network using Monorail pathfinder API.
     """
@@ -60,7 +67,7 @@ class MonadSwapper:
         # amount in wei
         amount = self.w3.to_wei(amount_to_send, 'ether')
         # Prepare transaction data
-        logging.info(f"Account {self.wallet_address}: Prepping to send {amount_to_send} MON to {to_address}")
+        logging.info(f"👤 {self.wallet_address}: Prepping to send {amount_to_send} MON to {to_address}")
 
         tx_data = {
             'to': to_address,
@@ -83,10 +90,10 @@ class MonadSwapper:
         eth_spent = self.w3.from_wei(gas_used * gas_price, 'ether')
 
         if tx_receipt.status == 1:
-            logging.info(f"Account {self.display_address}: "
+            logging.info(f"👤 {self.display_address}: "
                          f"Successfully sent {amount_to_send} MON to {to_address}. Tx fees: {eth_spent:.5f} MON")
         else:
-            raise Exception(f"Account {self.display_address}: MON send failed!")
+            raise Exception(f"👤 {self.display_address}: MON send failed!")
 
         return tx_hash.hex()
 
@@ -143,7 +150,7 @@ class MonadSwapper:
 
         # Changed color_print to logging.info since color_print is not defined
         color_print(
-            f"Account {self.wallet_address}: Monad Testnet Ecosystem Token Balances: \n{' | '.join(balance_parts)}")
+            f"👤 {self.wallet_address}: Monad Testnet Ecosystem Token Balances: \n{' | '.join(balance_parts)}")
 
     def get_swap_quote(self, amount: float, from_token: str, to_token: str,
                        sender_address: str, slippage: float = 1,
@@ -224,7 +231,7 @@ class MonadSwapper:
         try:
             transaction['gas'] = self.w3.eth.estimate_gas(transaction)
         except Exception as e:
-            logging.error(f"Account {self.display_address}: Error estimating gas {e}")
+            logging.error(f"👤 {self.display_address}: Error estimating gas {e}")
             # Fallback to a conservative estimate if estimation fails
             transaction['gas'] = 300000
 
@@ -281,7 +288,7 @@ class MonadSwapper:
                 if attempt > 1:
                     gas_multiplier += gas_multiplier_increment
                     logging.info(
-                        f"Account {self.display_address}: Retry #{attempt - 1} with {int(gas_multiplier * 100)}% gas")
+                        f"👤 {self.display_address}: Retry #{attempt - 1} with {int(gas_multiplier * 100)}% gas")
 
                     # Increase gas limit
                     if 'gas' in transaction:
@@ -306,7 +313,7 @@ class MonadSwapper:
                 mon_bal = self.get_bal()
 
                 logging.info(
-                    f"Account {self.display_address}: Bal {mon_bal} MON. Transaction #{nonce} sent! Hash: 0x{tx_hash.hex()}")
+                    f"👤 {self.display_address}: Bal {mon_bal} MON. Transaction #{nonce} sent! Hash: 0x{tx_hash.hex()}")
 
                 # Wait for transaction to be mined
                 tx_receipt = self.w3.eth.wait_for_transaction_receipt(tx_hash, timeout=120)
@@ -316,30 +323,30 @@ class MonadSwapper:
                 # Check if transaction succeeded
                 if tx_receipt.status == 1:
                     logging.info(
-                        f"Account {self.display_address}: Successfully swapped {amount} {from_token} -> {expected_output} {to_token}. Tx fees: {eth_spent:.5f} MON")
+                        f"👤 {self.display_address}: Successfully swapped {amount} {from_token} -> {expected_output} {to_token}. Tx fees: {eth_spent:.5f} MON")
                     return tx_hash.hex()
                 else:
                     logging.warning(
-                        f"Account {self.display_address}: Transaction mined but failed with status 0. Attempt {attempt}/{max_retries}. Hash: 0x{tx_hash.hex()}. Tx fees: {eth_spent:.5f} MON")
+                        f"👤 {self.display_address}: Transaction mined but failed with status 0. Attempt {attempt}/{max_retries}. Hash: 0x{tx_hash.hex()}. Tx fees: {eth_spent:.5f} MON")
 
                     # On last retry, raise exception
                     if attempt == max_retries:
                         raise Exception(
-                            f"Account {self.display_address}: Failed to swap {amount} {from_token} -> {expected_output} {to_token} after {max_retries} attempts. Hash: 0x{tx_hash.hex()}")
+                            f"👤 {self.display_address}: Failed to swap {amount} {from_token} -> {expected_output} {to_token} after {max_retries} attempts. Hash: 0x{tx_hash.hex()}")
 
                     # Continue to next retry
                     continue
 
             except Exception as e:
                 if attempt == max_retries:
-                    logging.error(f"Account {self.display_address}: All {max_retries} swap attempts failed: {str(e)}")
+                    logging.error(f"👤 {self.display_address}: All {max_retries} swap attempts failed: {str(e)}")
                     raise Exception(
-                        f"Account {self.display_address}: Failed to swap {amount} {from_token} -> {expected_output} {to_token} after {max_retries} attempts: {str(e)}")
+                        f"👤 {self.display_address}: Failed to swap {amount} {from_token} -> {expected_output} {to_token} after {max_retries} attempts: {str(e)}")
                 elif "Signer had insufficient balance" in str(e):
                     raise e
                 else:
                     logging.warning(
-                        f"Account {self.display_address}: Swap attempt {attempt} failed: {str(e)}. Retrying...")
+                        f"👤 {self.display_address}: Swap attempt {attempt} failed: {str(e)}. Retrying...")
                     # Sleep briefly before retrying
                     time.sleep(2)
 
@@ -427,3 +434,79 @@ class MonadSwapper:
         balance = self.w3.eth.get_balance(self.wallet_address)
         balance_eth = round(self.w3.from_wei(balance, 'ether'), 3)
         return balance_eth
+
+
+async def swap_tokens(private_key, cycles=DAILY_SWAPS):
+    count = 0
+    while True:
+        try:
+            # Initialize the swapper
+            swapper = MonorailSwapper(get_web3_connection(), private_key)
+            # Display balances for a specific address
+            swapper.display_wallet_balances()
+
+            rand_int = random.randint(1, 100)
+            random_swap_amt = f"0.000{rand_int}"
+            to_tokens = ['CHOG', 'DAK', 'YAKI', 'WMON', "USDC"]
+            random_token = random.choice(to_tokens)
+
+            # Execute a swap (will sign and broadcast the transaction)
+            tx_hash = swapper.execute_swap(
+                amount=float(random_swap_amt),
+                from_token="MON",
+                to_token=random_token
+            )
+            count += 1
+            logging.info(f"👤 {swapper.display_address}: Swap count: {count}/{cycles}..")
+
+            # Check if cycle is complete
+            if count >= cycles:
+                await timeout()
+                return
+            else:
+                await timeout()  # Normal wait between swaps
+
+        except Exception as e:
+            if 'Signer had insufficient balance' in str(e):
+                logging.warning(
+                    f"👤 {swapper.display_address}: Signer had insufficient balance. Funding from Fund wallet..")
+                # initialise funder
+                funder = MonorailSwapper(get_web3_connection(), FUNDER_PRIVATE_KEY)
+                funder.send_base_tokens(swapper.wallet_address, FUND_AMT)
+            elif 'Failed to connect to Monad network' in str(e):
+                logging.warning(f"Failed to connect to Monad network. Trying again")
+                await asyncio.sleep(5)
+
+            else:
+                logging.error(f"Error in Monorail swap {e}")
+                raise e
+
+
+async def run():
+    """Run swapper with multiple private keys from private_keys.txt."""
+
+    if not private_keys:
+        logging.error("No private keys found in private_keys.txt!")
+        color_print("ERROR: No private keys found in private_keys.txt!", "RED")
+        return
+
+    color_print(f"Starting Monad Swapper with {len(private_keys)} accounts...", "GREEN")
+
+    # Create tasks for each private key
+    tasks = []
+    for private_key in private_keys:
+        tasks.append(swap_tokens(private_key))
+
+    # Run all tasks concurrently
+    await asyncio.gather(*tasks)
+
+
+if __name__ == "__main__":
+    print("Starting Monad swapper script...")
+    try:
+        asyncio.run(run())
+    except KeyboardInterrupt:
+        print("\nScript stopped by user")
+    except Exception as e:
+        logging.critical(f"Fatal error: {str(e)}")
+        print(f"\nFatal error: {str(e)}")
