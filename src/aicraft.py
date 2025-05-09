@@ -1,10 +1,23 @@
 import requests
-import json
 import time
 from eth_account.messages import encode_defunct
-from web3 import Web3
-from src.proxies import get_phantom_headers
-from src.staker import MonadStaker, logging
+from headers import get_phantom_headers
+from src.stakers import MonadStaker
+import asyncio
+import logging
+from web3.exceptions import Web3RPCError
+import random
+
+from utils import timeout, color_print, get_web3_connection, data, private_keys
+
+
+# Constants
+DAILY_VOTES = data["AICRAFT"]["dailyVotes"]
+REFERRAL_CODE = data["AICRAFT"]["referralCode"]
+COUNTRIES_TO_VOTE = data["AICRAFT"]["countryCodeToVote"]
+
+FUND_AMT = data["FUND_AMOUNT"]
+FUNDER_PRIVATE_KEY = data["FUNDER_PRIVATE_KEY"]
 
 
 class AiCraftFun(MonadStaker):
@@ -54,9 +67,11 @@ class AiCraftFun(MonadStaker):
             tx = function_call.build_transaction({
                 'from': self.wallet_address,
                 'nonce': nonce,
-                'gas': 120000,
                 'gasPrice': gas_price
             })
+
+            estimated_gas = self.w3.eth.estimate_gas(tx)
+            tx['gas'] = estimated_gas
 
             # Sign transaction
             signed_tx = self.w3.eth.account.sign_transaction(tx, private_key=self.private_key)
@@ -66,15 +81,15 @@ class AiCraftFun(MonadStaker):
             tx_hash_hex = '0x' + tx_hash.hex()
 
             # Wait for transaction to be mined
-            logging.info(f"Account {self.display_address}: Bal. {self.get_bal()} MON.  Tx #{nonce} sent!: {tx_hash_hex}")
-            logging.info(f"Account {self.display_address}: Waiting for transaction to be mined...")
+            logging.info(f"👤 {self.display_address}: Bal. {self.get_bal()} MON.  Tx #{nonce} sent!: {tx_hash_hex}")
+            logging.info(f"👤 {self.display_address}: Waiting for transaction to be mined...")
             receipt = self.w3.eth.wait_for_transaction_receipt(tx_hash, timeout=120)
             gas_used = receipt.gasUsed
             gas_price = self.w3.eth.gas_price
             eth_spent = self.w3.from_wei(gas_used * gas_price, 'ether')
 
             logging.info(
-                f"Account {self.display_address}: Transaction mined! "
+                f"👤 {self.display_address}: Transaction mined! "
                 f"Status: {'Success' if receipt.status == 1 else 'Failed'}. Fees: {eth_spent:.5f} MON")
 
             # Return transaction hash
@@ -116,7 +131,7 @@ class AiCraftFun(MonadStaker):
         response = requests.post(url, json=payload)
 
         if response.status_code == 200 or response.status_code == 201:
-            logging.info(f"Account {self.display_address}: User sign in success!")
+            logging.info(f"👤 {self.display_address}: User sign in success!")
             data = response.json()
         else:
             raise Exception(f"Error during sign in {response.status_code} {response.text}")
@@ -250,7 +265,7 @@ class AiCraftFun(MonadStaker):
 
         points = user_info['data']["point"]
         today_feed_count = user_info['data']["todayFeedCount"]
-        logging.info(f"Account {self.display_address}: Point {points} | Votes left {today_feed_count}")
+        logging.info(f"👤 {self.display_address}: Point {points} | Votes left {today_feed_count}")
         return confirmation
 
     def get_top_candidates(self, project_id, category=None, limit=10):
@@ -386,3 +401,86 @@ class AiCraftFun(MonadStaker):
             "remaining_votes": max(0, remaining_votes - len(results)),
             "results": results
         }
+
+
+async def ai_craft_voting(private_key):
+    while True:  # Infinite loop, till you interrupt
+        try:
+            # Initialize the AiCraftFun class
+            ai_craft = AiCraftFun(get_web3_connection(), private_key)
+
+            try:
+                # Sign in with a referral code
+                ai_craft.sign_in(ref_code=REFERRAL_CODE)
+
+                project_id = "678376133438e102d6ff5c6e"  # for all voting regions (Africa, South america, Asia) etc
+                # Display balances for a specific address
+                ai_craft.display_wallet_balances()
+
+                profile = ai_craft.get_user_info()
+                today_vote_count = profile['data']['todayFeedCount']
+                if today_vote_count > DAILY_VOTES:
+                    remaining_voting = DAILY_VOTES
+                else:
+                    remaining_voting = today_vote_count
+                if remaining_voting >= 0:
+                    for vote in range(remaining_voting):
+                        country_code = random.choice(COUNTRIES_TO_VOTE)
+                        logging.info(f"👤 {ai_craft.display_address}: Prepping to vote {country_code}..")
+                        ai_craft.vote_by_country(
+                            project_id=project_id,
+                            ref_code=REFERRAL_CODE,
+                            country_code=country_code
+                        )
+                        logging.info(f"👤 {ai_craft.display_address}: AI Craft vote success! ({vote + 1})")
+                        await timeout()  # Normal wait between swaps
+
+                    logging.info(f"👤 {ai_craft.display_address}: Voting complete.")
+                    return
+
+            except Web3RPCError as e:
+                if 'Signer had insufficient balance' in str(e):
+                    logging.warning(
+                        f"👤 {ai_craft.display_address}: Signer had insufficient balance. Funding from Fund wallet..")
+                    # initialise funder
+                    funder = AiCraftFun(get_web3_connection(), FUNDER_PRIVATE_KEY)
+                    funder.send_base_tokens(ai_craft.wallet_address, FUND_AMT)
+                else:
+                    logging.error(f"Error {e}. Trying again..")
+                    await asyncio.sleep(5)
+
+        except Exception as e:
+            color_print(f"An error occurred within the infinite loop\n{e}", "RED")
+            color_print(f"Restarting AI CRAFT...", "MAGENTA")
+            await asyncio.sleep(1 * 60 * 60)
+
+
+async def run():
+    """Run AI Craft voting with multiple private keys from private_keys.txt."""
+
+    if not private_keys:
+        logging.error("No private keys found in private_keys.txt!")
+        color_print("ERROR: No private keys found in private_keys.txt!", "RED")
+        return
+
+    color_print(f"Starting AI Craft voting with {len(private_keys)} accounts...", "GREEN")
+
+    # Create tasks for each private key
+    tasks = []
+    for private_key in private_keys:
+        tasks.append(ai_craft_voting(private_key))
+
+    # Run all tasks concurrently
+    await asyncio.gather(*tasks)
+
+
+if __name__ == "__main__":
+
+    print("Starting AI Craft voting script...")
+    try:
+        asyncio.run(run())
+    except KeyboardInterrupt:
+        print("\nScript stopped by user")
+    except Exception as e:
+        logging.critical(f"Fatal error: {str(e)}")
+        print(f"\nFatal error: {str(e)}")
