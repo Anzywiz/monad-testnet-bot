@@ -111,14 +111,14 @@ async def place_bet(private_key):
             bet_amount = float(f"0.00{random.randint(1, 5)}")
 
             # Place the bet
-            color_print(f"👤 {bet.display_address}: Preparing to bet {bet_amount} tokens")
+            color_print(f"Account {bet.display_address}: Preparing to bet {bet_amount} tokens")
             bet.zona_bet(bet_amount)
-            logging.info(f"👤 {bet.display_address}: Placed bet successfully.")
+            logging.info(f"Account {bet.display_address}: Placed bet successfully.")
 
         except Web3RPCError as e:
             if 'Signer had insufficient balance' in str(e):
                 logging.warning(
-                    f"👤 {bet.display_address}: Signer had insufficient balance. Funding from Fund wallet.."
+                    f"Account {bet.display_address}: Signer had insufficient balance. Funding from Fund wallet.."
                 )
                 # Initialize funder
                 funder = ZonaBet(get_web3_connection(), FUNDER_PRIVATE_KEY)
@@ -132,10 +132,10 @@ async def place_bet(private_key):
                 logging.warning(
                     f"Account {bet.display_address}: Position is not resolvable (actual value not yet updated)")
             else:
-                logging.error(f"👤 {bet.display_address}: Error {e}")
+                logging.error(f"Account {bet.display_address}: Error {e}")
 
     except Exception as e:
-        color_print(f"👤 {bet.display_address}: An error occurred: {e}", "RED")
+        color_print(f"Account {bet.display_address}: An error occurred: {e}", "RED")
 
 
 async def run():

@@ -148,7 +148,7 @@ class MonadStaker(MonorailSwapper):  # Inheriting attributes and method from Mon
         nonce = transaction["nonce"]
         mon_bal = self.get_bal()
 
-        logging.info(f"👤 {self.display_address}: Bal {mon_bal} MON. Transaction #{nonce} sent! Hash: 0x{tx_hash_hex}")
+        logging.info(f"Account {self.display_address}: Bal {mon_bal} MON. Transaction #{nonce} sent! Hash: 0x{tx_hash_hex}")
 
         # Wait for transaction receipt
         tx_receipt = self.w3.eth.wait_for_transaction_receipt(tx_hash, timeout=120)
@@ -157,10 +157,10 @@ class MonadStaker(MonorailSwapper):  # Inheriting attributes and method from Mon
         eth_spent = self.w3.from_wei(gas_used * gas_price, 'ether')
 
         if tx_receipt["status"] == 1:
-            logging.info(f"👤 {self.display_address}: Success! {success_message}. Tx fees: {eth_spent:.5f} MON")
+            logging.info(f"Account {self.display_address}: Success! {success_message}. Tx fees: {eth_spent:.5f} MON")
             return '0x' + tx_hash_hex
         else:
-            logging.error(f"👤 {self.display_address}: Transaction failed. Tx fees: {eth_spent:.5f} MON")
+            logging.error(f"Account {self.display_address}: Transaction failed. Tx fees: {eth_spent:.5f} MON")
             return None
 
     def build_base_transaction(self):
@@ -259,10 +259,10 @@ async def stake_token(private_key, cycles=DAILY_STAKES):
 
                 # after all thestaking for loop has been completed
                 count += 1
-                logging.info(f"👤 {staker.display_address}: Stake count: {count}/{cycles}..")
+                logging.info(f"Account {staker.display_address}: Stake count: {count}/{cycles}..")
 
                 if count >= cycles:
-                    logging.info(f"👤 {staker.display_address}: Full Stake cycle complete.")
+                    logging.info(f"Account {staker.display_address}: Full Stake cycle complete.")
                     return
                 else:
                     await timeout(60, 200)
@@ -271,7 +271,7 @@ async def stake_token(private_key, cycles=DAILY_STAKES):
                 # Error handling as before
                 if 'Signer had insufficient balance' in str(e):
                     logging.warning(
-                        f"👤 {staker.display_address}: Signer had insufficient balance. Funding from Fund wallet..")
+                        f"Account {staker.display_address}: Signer had insufficient balance. Funding from Fund wallet..")
                     # initialise funder
                     funder = MonadStaker(get_web3_connection(), FUNDER_PRIVATE_KEY)
                     funder.send_base_tokens(staker.wallet_address, FUND_AMT)
