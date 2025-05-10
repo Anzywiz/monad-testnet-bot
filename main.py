@@ -3,15 +3,13 @@ import importlib.util
 import sys
 import os
 import random
-import logging
 from datetime import datetime, timedelta
 from colorama import Fore, Style, init
 from utils import data
+from logger import logger
 
 # Initialize colorama
 init(autoreset=True)
-
-logger = logging.getLogger("MultiDexRunner")
 
 # Configuration
 SRC_FOLDER = "src"  # Folder containing the scripts
