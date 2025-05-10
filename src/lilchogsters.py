@@ -3,7 +3,7 @@ import random
 from typing import Dict, List
 from eth_account import Account
 import aiohttp
-from loguru import logger
+from logger import logger
 from colorama import init, Fore, Style
 from utils import get_web3_connection, private_keys
 
