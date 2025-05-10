@@ -4,7 +4,7 @@ from typing import Dict, List, Optional, Tuple
 from eth_account import Account
 from eth_abi import abi
 from decimal import Decimal
-from loguru import logger
+from logger import logger
 import aiohttp
 from colorama import init, Fore, Style
 from utils import get_web3_connection, private_keys
