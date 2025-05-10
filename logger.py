@@ -1,6 +1,6 @@
 from colorama import Fore, Back, Style
 import colorlog
-
+import logging
 
 def color_print(text, color="BLUE", background=None, style=None):
     """
@@ -34,6 +34,20 @@ def color_print(text, color="BLUE", background=None, style=None):
     print(f"{style_code}{bg_code}{color_code}{text}{Style.RESET_ALL}")
 
 
+# First, define a SUCCESS level
+SUCCESS_LEVEL = 25  # Between INFO (20) and WARNING (30)
+logging.addLevelName(SUCCESS_LEVEL, "SUCCESS")
+
+
+# Create a success method for Logger class
+def success(self, message, *args, **kwargs):
+    if self.isEnabledFor(SUCCESS_LEVEL):
+        self._log(SUCCESS_LEVEL, message, args, **kwargs)
+
+
+# Add the success method to the Logger class
+logging.Logger.success = success
+
 formatter = colorlog.ColoredFormatter(
     '%(log_color)s%(levelname)s: %(asctime)s: %(message)s',
     log_colors={
@@ -41,7 +55,8 @@ formatter = colorlog.ColoredFormatter(
         'INFO': 'cyan',
         'WARNING': 'yellow',
         'ERROR': 'red',
-        'CRITICAL': 'red,bg_white'
+        'CRITICAL': 'red,bg_white',
+        'SUCCESS': 'green,bold'  # Add color for SUCCESS level
     },
     datefmt='%Y-%m-%d %H:%M:%S'
 )
@@ -49,6 +64,10 @@ formatter = colorlog.ColoredFormatter(
 handler = colorlog.StreamHandler()
 handler.setFormatter(formatter)
 
+file_handler = logging.FileHandler("monad_bot.log")
+file_handler.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s'))
+
 logger = colorlog.getLogger()
+logger.setLevel(logging.INFO)
 logger.addHandler(handler)
-logger.setLevel(colorlog.INFO)
+logger.addHandler(file_handler)
