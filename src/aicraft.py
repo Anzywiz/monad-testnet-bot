@@ -81,15 +81,15 @@ class AiCraftFun(MonadStaker):
             tx_hash_hex = '0x' + tx_hash.hex()
 
             # Wait for transaction to be mined
-            logging.info(f"👤 {self.display_address}: Bal. {self.get_bal()} MON.  Tx #{nonce} sent!: {tx_hash_hex}")
-            logging.info(f"👤 {self.display_address}: Waiting for transaction to be mined...")
+            logging.info(f"Account {self.display_address}: Bal. {self.get_bal()} MON.  Tx #{nonce} sent!: {tx_hash_hex}")
+            logging.info(f"Account {self.display_address}: Waiting for transaction to be mined...")
             receipt = self.w3.eth.wait_for_transaction_receipt(tx_hash, timeout=120)
             gas_used = receipt.gasUsed
             gas_price = self.w3.eth.gas_price
             eth_spent = self.w3.from_wei(gas_used * gas_price, 'ether')
 
             logging.info(
-                f"👤 {self.display_address}: Transaction mined! "
+                f"Account {self.display_address}: Transaction mined! "
                 f"Status: {'Success' if receipt.status == 1 else 'Failed'}. Fees: {eth_spent:.5f} MON")
 
             # Return transaction hash
@@ -131,7 +131,7 @@ class AiCraftFun(MonadStaker):
         response = requests.post(url, json=payload)
 
         if response.status_code == 200 or response.status_code == 201:
-            logging.info(f"👤 {self.display_address}: User sign in success!")
+            logging.info(f"Account {self.display_address}: User sign in success!")
             data = response.json()
         else:
             raise Exception(f"Error during sign in {response.status_code} {response.text}")
@@ -265,7 +265,7 @@ class AiCraftFun(MonadStaker):
 
         points = user_info['data']["point"]
         today_feed_count = user_info['data']["todayFeedCount"]
-        logging.info(f"👤 {self.display_address}: Point {points} | Votes left {today_feed_count}")
+        logging.info(f"Account {self.display_address}: Point {points} | Votes left {today_feed_count}")
         return confirmation
 
     def get_top_candidates(self, project_id, category=None, limit=10):
@@ -406,54 +406,48 @@ class AiCraftFun(MonadStaker):
 async def ai_craft_voting(private_key):
     while True:  # Infinite loop, till you interrupt
         try:
-            # Initialize the AiCraftFun class
             ai_craft = AiCraftFun(get_web3_connection(), private_key)
 
-            try:
-                # Sign in with a referral code
-                ai_craft.sign_in(ref_code=REFERRAL_CODE)
+            # Sign in with a referral code
+            ai_craft.sign_in(ref_code=REFERRAL_CODE)
 
-                project_id = "678376133438e102d6ff5c6e"  # for all voting regions (Africa, South america, Asia) etc
-                # Display balances for a specific address
-                ai_craft.display_wallet_balances()
+            project_id = "678376133438e102d6ff5c6e"  # for all voting regions (Africa, South america, Asia) etc
+            # Display balances for a specific address
+            ai_craft.display_wallet_balances()
 
-                profile = ai_craft.get_user_info()
-                today_vote_count = profile['data']['todayFeedCount']
-                if today_vote_count > DAILY_VOTES:
-                    remaining_voting = DAILY_VOTES
-                else:
-                    remaining_voting = today_vote_count
-                if remaining_voting >= 0:
-                    for vote in range(remaining_voting):
-                        country_code = random.choice(COUNTRIES_TO_VOTE)
-                        logging.info(f"👤 {ai_craft.display_address}: Prepping to vote {country_code}..")
-                        ai_craft.vote_by_country(
-                            project_id=project_id,
-                            ref_code=REFERRAL_CODE,
-                            country_code=country_code
-                        )
-                        logging.info(f"👤 {ai_craft.display_address}: AI Craft vote success! ({vote + 1})")
-                        await timeout()  # Normal wait between swaps
+            profile = ai_craft.get_user_info()
+            today_vote_count = profile['data']['todayFeedCount']
+            if today_vote_count > DAILY_VOTES:
+                remaining_voting = DAILY_VOTES
+            else:
+                remaining_voting = today_vote_count
+            if remaining_voting >= 0:
+                for vote in range(remaining_voting):
+                    country_code = random.choice(COUNTRIES_TO_VOTE)
+                    logging.info(f"Account {ai_craft.display_address}: Prepping to vote {country_code}..")
+                    ai_craft.vote_by_country(
+                        project_id=project_id,
+                        ref_code=REFERRAL_CODE,
+                        country_code=country_code
+                    )
+                    logging.info(f"Account {ai_craft.display_address}: AI Craft vote success! ({vote + 1})")
+                    await timeout()  # Normal wait between swaps
 
-                    logging.info(f"👤 {ai_craft.display_address}: Voting complete.")
-                    return
+                logging.info(f"Account {ai_craft.display_address}: Voting complete.")
+                return
 
-            except Web3RPCError as e:
-                if 'Signer had insufficient balance' in str(e):
+        except Web3RPCError as e:
+            error_list = ["intrinsic gas greater than limit", "Signer had insufficient balance"]
+            for error in error_list:
+                if error in str(e):
                     logging.warning(
-                        f"👤 {ai_craft.display_address}: Signer had insufficient balance. Funding from Fund wallet..")
+                        f"Account {ai_craft.display_address}: Ai craft error: {error}..")
                     # initialise funder
                     funder = AiCraftFun(get_web3_connection(), FUNDER_PRIVATE_KEY)
                     funder.send_base_tokens(ai_craft.wallet_address, FUND_AMT)
                 else:
-                    logging.error(f"Error {e}. Trying again..")
-                    await asyncio.sleep(5)
-
-        except Exception as e:
-            color_print(f"An error occurred within the infinite loop\n{e}", "RED")
-            color_print(f"Restarting AI CRAFT...", "MAGENTA")
-            await asyncio.sleep(1 * 60 * 60)
-
+                    logging.error(f"Error in aicraft: {e}.")
+                    raise e
 
 async def run():
     """Run AI Craft voting with multiple private keys from private_keys.txt."""

@@ -229,60 +229,54 @@ async def stake_token(private_key, cycles=DAILY_STAKES):
     count = 0
     while True:  # Infinite loop, till you interrupt
         try:
-            # Initialize the swapper
             staker = MonadStaker(get_web3_connection(), private_key)
 
-            try:
-                # Define possible staking methods
-                staking_methods = STAKING_METHODS
-                if not staking_methods:
-                    return
-                random.shuffle(staking_methods)
-                for method_name in staking_methods:
-                    if method_name == "kintsu_stake":
-                        # Get a random amount greater than 0.01
-                        rand_int = random.randint(1, 2)
-                        amount = float(f"0.0{rand_int}")
-                    else:
-                        amount = get_random_stake_amount()
-
-                    # Get the method from the staker object
-                    staking_method = getattr(staker, method_name)
-
-                    # Call the selected staking method with the amount
-                    color_print(f"Prepping to stake {amount} MON on {method_name.split('_')[0]}")
-                    staking_method(amount)
-                    if method_name == "magma_stake":
-                        await timeout(30, 120)
-                        color_print(f"Prepping to Unstake {amount} MON on {method_name.split('_')[0]}")
-                        staker.magma_unstake(amount)
-
-                # after all thestaking for loop has been completed
-                count += 1
-                logging.info(f"Account {staker.display_address}: Stake count: {count}/{cycles}..")
-
-                if count >= cycles:
-                    logging.info(f"Account {staker.display_address}: Full Stake cycle complete.")
-                    return
+            # Define possible staking methods
+            staking_methods = STAKING_METHODS
+            if not staking_methods:
+                return
+            random.shuffle(staking_methods)
+            for method_name in staking_methods:
+                if method_name == "kintsu_stake":
+                    # Get a random amount greater than 0.01
+                    rand_int = random.randint(1, 2)
+                    amount = float(f"0.0{rand_int}")
                 else:
-                    await timeout(60, 200)
+                    amount = get_random_stake_amount()
 
-            except Web3RPCError as e:
-                # Error handling as before
-                if 'Signer had insufficient balance' in str(e):
+                # Get the method from the staker object
+                staking_method = getattr(staker, method_name)
+
+                # Call the selected staking method with the amount
+                color_print(f"Prepping to stake {amount} MON on {method_name.split('_')[0]}")
+                staking_method(amount)
+                if method_name == "magma_stake":
+                    await timeout(30, 120)
+                    color_print(f"Prepping to Unstake {amount} MON on {method_name.split('_')[0]}")
+                    staker.magma_unstake(amount)
+
+            # after all thestaking for loop has been completed
+            count += 1
+            logging.info(f"Account {staker.display_address}: Stake count: {count}/{cycles}..")
+
+            if count >= cycles:
+                logging.info(f"Account {staker.display_address}: Full Stake cycle complete.")
+                return
+            else:
+                await timeout(60, 200)
+
+        except Web3RPCError as e:
+            error_list = ["intrinsic gas greater than limit", "Signer had insufficient balance"]
+            for error in error_list:
+                if error in str(e):
                     logging.warning(
-                        f"Account {staker.display_address}: Signer had insufficient balance. Funding from Fund wallet..")
+                        f"Account {staker.display_address}: Ai craft error: {error}..")
                     # initialise funder
                     funder = MonadStaker(get_web3_connection(), FUNDER_PRIVATE_KEY)
                     funder.send_base_tokens(staker.wallet_address, FUND_AMT)
                 else:
-                    logging.error(f"Error {e}. Trying again..")
-                    await asyncio.sleep(5)
-
-        except Exception as e:
-            color_print(f"An error occurred within the infinite loop\n{e}", "RED")
-            color_print(f"Restarting Monad staker...", "MAGENTA")
-            await asyncio.sleep(1 * 60 * 60)
+                    logging.error(f"Error in stakers{e}.")
+                    raise e
 
 
 async def run():
