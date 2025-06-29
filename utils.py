@@ -5,7 +5,7 @@ import requests
 import random
 import os
 from pathlib import Path
-from logger import color_print
+from logger import color_print, logger
 from proxies import get_free_proxy
 from headers import get_phantom_headers
 
@@ -186,3 +186,113 @@ async def timeout(start=60, end=300):
 
     color_print(f"⏳ Waiting {time_str} ...", "GREEN", style="BRIGHT")
     await asyncio.sleep(time_out)
+
+
+FUND_AMT = data["FUND_AMOUNT"]
+FUNDER_PRIVATE_KEY = data["FUNDER_PRIVATE_KEY"]
+
+
+def handle_funding_error(exception: Exception, wallet_address: str) -> bool:
+    """
+    Handle funding errors by sending tokens to insufficient balance accounts
+
+    Args:
+        exception: The exception that occurred
+        wallet_address: Address to send funds to
+
+    Returns:
+        bool: True if funding was attempted, False otherwise
+    """
+    error_list = [
+        "intrinsic gas greater than limit",
+        "Signer had insufficient balance",
+        "insufficient funds",
+        "insufficient balance",
+        "insufficient funds for gas",
+        "insufficient funds for transfer",
+        "insufficient funds for gas * price + value",
+        "insufficient funds for intrinsic transaction cost",
+        "not enough balance",
+        "balance too low",
+        "insufficient ETH balance",
+        "insufficient native token",
+        "gas required exceeds allowance",
+        "out of gas",
+        "execution reverted: insufficient balance",
+        "transfer amount exceeds balance",
+        "sender doesn't have enough funds",
+        "insufficient allowance",
+        "ERC20: transfer amount exceeds balance",
+        "ERC20: insufficient allowance"
+    ]
+
+    for error in error_list:
+        if error in str(exception).lower():  # Case insensitive matching
+            logger.warning(f"Account {wallet_address}: Funding error: {error}")
+            try:
+                # Send tokens directly using web3
+                w3 = get_web3_connection()
+                funder_account = w3.eth.account.from_key(FUNDER_PRIVATE_KEY)
+
+                # Check funder balance first
+                funder_balance = w3.eth.get_balance(funder_account.address)
+                gas_cost = 21000 * w3.eth.gas_price
+                funding_amount = w3.to_wei(FUND_AMT, 'ether')
+                total_needed = funding_amount + gas_cost
+
+                if funder_balance < total_needed:
+                    logger.error(f"Funder {funder_account.address} has insufficient balance. "
+                                  f"Has: {w3.from_wei(funder_balance, 'ether'):.6f} MON, "
+                                  f"Needs: {w3.from_wei(total_needed, 'ether'):.6f} MON")
+                    return False
+
+                logger.info(f"Funder {funder_account.address}: Prepping to send {FUND_AMT} MON to {wallet_address}")
+
+                # Use EIP-1559 transaction for better gas handling
+                try:
+                    # Try EIP-1559 first (better gas handling)
+                    latest_block = w3.eth.get_block('latest')
+                    base_fee = latest_block.get('baseFeePerGas', w3.eth.gas_price)
+                    max_priority_fee = min(w3.to_wei(2, 'gwei'), w3.eth.gas_price)
+
+                    tx_data = {
+                        'to': wallet_address,
+                        'value': funding_amount,
+                        'gas': 21000,
+                        'maxFeePerGas': base_fee + max_priority_fee,
+                        'maxPriorityFeePerGas': max_priority_fee,
+                        'nonce': w3.eth.get_transaction_count(funder_account.address),
+                        'chainId': w3.eth.chain_id,
+                        'type': 2  # EIP-1559
+                    }
+                except:
+                    # Fallback to legacy transaction
+                    tx_data = {
+                        'to': wallet_address,
+                        'value': funding_amount,
+                        'gas': 21000,
+                        'gasPrice': w3.eth.gas_price,
+                        'nonce': w3.eth.get_transaction_count(funder_account.address),
+                        'chainId': w3.eth.chain_id
+                    }
+
+                # Sign and send transaction
+                signed_tx = w3.eth.account.sign_transaction(tx_data, FUNDER_PRIVATE_KEY)
+                tx_hash = w3.eth.send_raw_transaction(signed_tx.raw_transaction)
+                tx_receipt = w3.eth.wait_for_transaction_receipt(tx_hash, timeout=120)
+
+                if tx_receipt.status == 1:
+                    gas_used = tx_receipt.gasUsed
+                    effective_gas_price = tx_receipt.get('effectiveGasPrice', w3.eth.gas_price)
+                    eth_spent = w3.from_wei(gas_used * effective_gas_price, 'ether')
+                    logger.info(f"Funder {funder_account.address}: "
+                                 f"Successfully sent {FUND_AMT} MON to {wallet_address}. Tx fees: {eth_spent:.6f} MON")
+                    return True
+                else:
+                    raise Exception(f"Funding transaction failed!")
+
+            except Exception as e:
+                logger.error(f"Failed to fund {wallet_address}: {str(e)}")
+                return False
+
+    return False
