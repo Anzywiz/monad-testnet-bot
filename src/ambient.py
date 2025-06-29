@@ -7,7 +7,7 @@ from decimal import Decimal
 from logger import logger
 import aiohttp
 from colorama import init, Fore, Style
-from utils import get_web3_connection, private_keys
+from utils import get_web3_connection, private_keys, handle_funding_error
 
 
 # Initialize colorama
@@ -352,10 +352,18 @@ class AmbientDex:
 
     async def _handle_error(self, action: str, error: Exception) -> None:
         """Xử lý lỗi với pause ngẫu nhiên."""
-        pause = random.uniform(*PAUSE_BETWEEN_ACTIONS)
-        logger.error(f"[{self.account_index}] Error in {action}: {error}. Sleeping for {pause:.2f}s")
-        print_step(action, f"{Fore.RED}✘ Error: {str(error)}. Retrying in {pause:.2f}s{Style.RESET_ALL}")
-        await asyncio.sleep(pause)
+
+        # Check if this is a funding error and attempt to fund
+        if handle_funding_error(error, self.account.address):
+            logger.info(f"[{self.account_index}] Funding attempted for {action} error")
+            print_step(action, f"{Fore.YELLOW}💰 Funding attempted. Retrying in 10s{Style.RESET_ALL}")
+            await asyncio.sleep(10)  # Shorter wait after funding
+        else:
+            # Original error handling for non-funding errors
+            pause = random.uniform(*PAUSE_BETWEEN_ACTIONS)
+            logger.error(f"[{self.account_index}] Error in {action}: {error}. Sleeping for {pause:.2f}s")
+            print_step(action, f"{Fore.RED}✘ Error: {str(error)}. Retrying in {pause:.2f}s{Style.RESET_ALL}")
+            await asyncio.sleep(pause)
 
 
 async def run() -> None:
@@ -374,33 +382,36 @@ async def run() -> None:
 
     success_count = 0
     async with aiohttp.ClientSession() as session:
-        for idx, private_key in enumerate(private_keys, start=1):
-            wallet = Account.from_key(private_key).address
-            wallet_short = f"{wallet[:5]}...{wallet[-5:]}"
-            account_msg = f"ACCOUNT {idx}/{len(private_keys)} - {wallet_short}"
-            print_border(account_msg, Fore.BLUE)
-            ambient = AmbientDex(idx, private_key, session)
-            logger.info(f"Processing account {idx}/{len(private_keys)}: {ambient.account.address}")
+        try:  # Add try block
+            for idx, private_key in enumerate(private_keys, start=1):
+                wallet = Account.from_key(private_key).address
+                wallet_short = f"{wallet[:5]}...{wallet[-5:]}"
+                account_msg = f"ACCOUNT {idx}/{len(private_keys)} - {wallet_short}"
+                print_border(account_msg, Fore.BLUE)
+                ambient = AmbientDex(idx, private_key, session)
+                logger.info(f"Processing account {idx}/{len(private_keys)}: {ambient.account.address}")
 
-            # Execute swap
-            try:
-                tx_hash = await ambient.swap(percentage_to_swap=100.0, swap_type="regular")
-                if tx_hash:
-                    success_count += 1
-            except Exception as e:
-                logger.error(f"[{idx}] Failed to execute swap: {str(e)}")
-                print_step('swap', f"{Fore.RED}✘ Swap failed: {str(e)}{Style.RESET_ALL}")
+                # Execute swap
+                try:
+                    tx_hash = await ambient.swap(percentage_to_swap=100.0, swap_type="regular")
+                    if tx_hash:
+                        success_count += 1
+                except Exception as e:
+                    logger.error(f"[{idx}] Failed to execute swap: {str(e)}")
+                    print_step('swap', f"{Fore.RED}✘ Swap failed: {str(e)}{Style.RESET_ALL}")
 
-            # Pause between accounts
-            if idx < len(private_keys):
-                pause = random.uniform(10, 30)
-                pause_msg = f"Waiting {pause:.2f}s before next account..."
-                print(f"{Fore.YELLOW}⏳ {pause_msg:^76}{Style.RESET_ALL}")
-                await asyncio.sleep(pause)
+                # Pause between accounts
+                if idx < len(private_keys):
+                    pause = random.uniform(10, 30)
+                    pause_msg = f"Waiting {pause:.2f}s before next account..."
+                    print(f"{Fore.YELLOW}⏳ {pause_msg:^76}{Style.RESET_ALL}")
+                    await asyncio.sleep(pause)
+
+        finally:  # Ensure session is properly closed
+            pass  # Session will be closed by async with context manager
 
     # Display completion message
     print_completion_message(accounts=len(private_keys), success_count=success_count)
-
 
 if __name__ == "__main__":
     asyncio.run(run())

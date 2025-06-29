@@ -2,7 +2,7 @@ import random
 import asyncio
 import time
 from colorama import init, Fore, Style
-from utils import get_web3_connection, private_keys, data
+from utils import get_web3_connection, private_keys, data, handle_funding_error
 
 # Initialize colorama
 init(autoreset=True)
@@ -25,7 +25,7 @@ TOKENS = {
         "decimals": 6,
     },
     "USDT": {
-        "address": "0x88b8e2161dedc77ef4ab7585569d2415a1c1055d",
+        "address": "0x88b8E2161DEDC77EF4ab7585569D2415a1C1055D",
         "symbol": "USDT",
         "name": "Tether USD",
         "minAmount": 0.01,
@@ -77,13 +77,6 @@ ROUTER_ABI = [
 ]
 
 
-# Initialize web3 provider
-w3 = get_web3_connection()
-ROUTER_ADDRESS = w3.to_checksum_address(ROUTER_ADDRESS)
-WMON_ADDRESS = w3.to_checksum_address(WMON_ADDRESS)
-TOKENS = {key: {**value, "address": w3.to_checksum_address(value["address"])} for key, value in TOKENS.items()}
-
-
 # Function to read private keys from private_keys.txt
 def load_private_keys(file_path):
     try:
@@ -125,7 +118,7 @@ def get_random_delay():
 
 
 # Function to approve token with retry
-async def approve_token(private_key, token_address, amount, decimals, max_retries=3):
+async def approve_token(w3, private_key, token_address, amount, decimals, max_retries=3):
     for attempt in range(max_retries):
         try:
             account = w3.eth.account.from_key(private_key)
@@ -162,7 +155,7 @@ async def approve_token(private_key, token_address, amount, decimals, max_retrie
 
 
 # Function to swap Token to MON
-async def swap_token_to_mon(private_key, token_symbol, amount):
+async def swap_token_to_mon(w3, private_key, token_symbol, amount):
     token = TOKENS[token_symbol]
     try:
         account = w3.eth.account.from_key(private_key)
@@ -170,7 +163,7 @@ async def swap_token_to_mon(private_key, token_symbol, amount):
 
         print_border(f"Swap {amount} {token_symbol} to MON | {wallet}", Fore.MAGENTA)
 
-        amount_in_decimals = await approve_token(private_key, token['address'], amount, token['decimals'])
+        amount_in_decimals = await approve_token(w3, private_key, token['address'], amount, token['decimals'])
 
         router = w3.eth.contract(address=ROUTER_ADDRESS, abi=ROUTER_ABI)
         tx = router.functions.swapExactTokensForETH(
@@ -199,11 +192,11 @@ async def swap_token_to_mon(private_key, token_symbol, amount):
             raise Exception(f"Transaction failed: Status {receipt.status}")
     except Exception as e:
         print_step('swap', f"{Fore.RED}✘ Failed: {str(e)}{Style.RESET_ALL}")
-        return False
+        raise e
 
 
 # Function to swap MON to Token
-async def swap_mon_to_token(private_key, token_symbol, amount):
+async def swap_mon_to_token(w3, private_key, token_symbol, amount):
     token = TOKENS[token_symbol]
     try:
         account = w3.eth.account.from_key(private_key)
@@ -236,11 +229,11 @@ async def swap_mon_to_token(private_key, token_symbol, amount):
             raise Exception(f"Transaction failed: Status {receipt.status}")
     except Exception as e:
         print_step('swap', f"{Fore.RED}✘ Failed: {str(e)}{Style.RESET_ALL}")
-        return False
+        raise e
 
 
 # Function to check balance with retry
-async def check_balance(private_key, max_retries=3):
+async def check_balance(w3, private_key, max_retries=3):
     account = w3.eth.account.from_key(private_key)
     wallet = account.address[:5] + "..." + account.address[-5:]
     print_border(f"💰 Balance | {wallet}", Fore.CYAN)
@@ -271,7 +264,7 @@ async def check_balance(private_key, max_retries=3):
 
 
 # Function to perform random swap
-async def perform_random_swap(private_key):
+async def perform_random_swap(w3, private_key):
     account = w3.eth.account.from_key(private_key)
     wallet = account.address[:5] + "..." + account.address[-5:]
     is_mon_to_token = True
@@ -283,31 +276,78 @@ async def perform_random_swap(private_key):
         amount = get_random_amount()
         amount_in_wei = w3.to_wei(amount, 'ether')
         print_border(f"🎲 Random Swap: {amount} MON → {token_symbol} | {wallet}", Fore.YELLOW)
-        return await swap_mon_to_token(private_key, token_symbol, amount)
+        return await swap_mon_to_token(w3, private_key, token_symbol, amount)
     else:
         amount = get_random_amount()
         print_border(f"🎲 Random Swap: {amount} {token_symbol} → MON | {wallet}", Fore.YELLOW)
-        return await swap_token_to_mon(private_key, token_symbol, amount)
+        return await swap_token_to_mon(w3, private_key, token_symbol, amount)
 
 
 # Run swap cycle
 async def run_swap_cycle(cycles, private_keys):
+    successful_accounts = 0
+
     for account_idx, private_key in enumerate(private_keys, 1):
-        account = w3.eth.account.from_key(private_key)
-        wallet = account.address[:5] + "..." + account.address[-5:]
-        print_border(f"🏦 ACCOUNT {account_idx}/{len(private_keys)} | {wallet}", Fore.BLUE)
-        await check_balance(private_key)
+        account_retries = 1
 
-        for i in range(cycles):
-            print_border(f"🔄 BEAN SWAP CYCLE {i + 1}/{cycles} | {wallet}", Fore.CYAN)
-            success = await perform_random_swap(private_key)
-            if success:
-                await check_balance(private_key)
+        while account_retries <= 3:
+            try:
+                # Initialize web3 provider
+                w3 = get_web3_connection()
+                account = w3.eth.account.from_key(private_key)
+                wallet = account.address[:5] + "..." + account.address[-5:]
 
-            if i < cycles - 1:
-                delay = get_random_delay()
-                print(f"\n{Fore.YELLOW}⏳ Waiting {delay / 60:.1f} minutes before next cycle...{Style.RESET_ALL}")
-                await asyncio.sleep(delay)
+                if account_retries == 1:
+                    print_border(f"🏦 ACCOUNT {account_idx}/{len(private_keys)} | {wallet}", Fore.BLUE)
+                else:
+                    print_border(f"🏦 ACCOUNT {account_idx}/{len(private_keys)} RETRY {account_retries}/3 | {wallet}",
+                                 Fore.YELLOW)
+
+                await check_balance(w3, private_key)
+
+                for i in range(cycles):
+                    print_border(f"🔄 BEAN SWAP CYCLE {i + 1}/{cycles} | {wallet}", Fore.CYAN)
+                    retries = 1
+                    while retries <= 3:
+                        try:
+                            success = await perform_random_swap(w3, private_key)
+                            if success:
+                                await check_balance(w3, private_key)
+                                break
+                        except Exception as e:
+                            if handle_funding_error(e, account.address):
+                                time.sleep(30)
+                                retries += 1
+                                continue
+                            else:
+                                raise e
+
+                    if i < cycles - 1:
+                        delay = get_random_delay()
+                        print(
+                            f"\n{Fore.YELLOW}⏳ Waiting {delay / 60:.1f} minutes before next cycle...{Style.RESET_ALL}")
+                        await asyncio.sleep(delay)
+
+                # If we reach here, all cycles completed successfully
+                successful_accounts += 1
+                print(f"{Fore.GREEN}✅ Account {account_idx} completed successfully{Style.RESET_ALL}")
+                break  # Exit retry loop on success
+
+            except Exception as e:
+                print(
+                    f"{Fore.RED}❌ Account {account_idx} attempt {account_retries} failed: {str(e)[:50]}...{Style.RESET_ALL}")
+
+                if handle_funding_error(e, account.address if 'account' in locals() else 'Unknown'):
+                    account_retries += 1
+                    continue
+                elif account_retries < 3:
+                    print(f"{Fore.YELLOW}🔄 Retrying account in 30 seconds...{Style.RESET_ALL}")
+                    await asyncio.sleep(30)
+                    account_retries += 1
+                    continue
+                else:
+                    print(f"{Fore.RED}💀 Account {account_idx} failed after 3 attempts, skipping...{Style.RESET_ALL}")
+                    break
 
         if account_idx < len(private_keys):
             delay = get_random_delay()
@@ -316,7 +356,7 @@ async def run_swap_cycle(cycles, private_keys):
 
     print(f"{Fore.GREEN}{'═' * 60}{Style.RESET_ALL}")
     print(
-        f"{Fore.GREEN}│ ALL DONE: {cycles} CYCLES FOR {len(private_keys)} ACCOUNTS{' ' * (32 - len(str(cycles)) - len(str(len(private_keys))))}│{Style.RESET_ALL}")
+        f"{Fore.GREEN}│ DONE: {successful_accounts}/{len(private_keys)} accounts, {cycles} cycles each{' ' * (60 - 50 - len(str(successful_accounts)) - len(str(len(private_keys))) - len(str(cycles)))}│{Style.RESET_ALL}")
     print(f"{Fore.GREEN}{'═' * 60}{Style.RESET_ALL}")
 
 
