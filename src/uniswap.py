@@ -2,7 +2,7 @@ import random
 import time
 import asyncio
 from colorama import init, Fore, Style
-from utils import get_web3_connection, private_keys, data, handle_funding_error
+from utils import get_web3_connection, private_keys, data, handle_funding_error, monad_testnet_tokens
 
 # Initialize colorama
 init(autoreset=True)
@@ -16,14 +16,7 @@ CHAIN_ID = 10143  # Monad testnet chain ID
 CYCLES = data["DAILY_INTERACTION"]["DEX"]["uniswap"]
 
 # Token addresses
-TOKEN_ADDRESSES = {
-    "DAC": "0x0f0bdebf0f83cd1ee3974779bcb7315f9808c714",
-    "USDT": "0x88b8e2161dedc77ef4ab7585569d2415a1c1055d",
-    "WETH": "0x836047a99e11f376522b447bffb6e3495dd0637c",
-    "MUK": "0x989d38aeed8408452f0273c7d4a17fef20878e62",
-    "USDC": "0xf817257fed379853cDe0fa4F97AB987181B1E5Ea",
-    "CHOG": "0xE0590015A873bF326bd645c3E1266d4db41C4E6B"
-}
+TOKEN_ADDRESSES = monad_testnet_tokens
 
 # Contract ABIs
 ERC20_ABI = [
@@ -306,7 +299,7 @@ async def run_swap_cycle(cycles, private_keys):
                             await asyncio.sleep(random.randint(30, 60))  # Wait between swaps
 
                             # Sell token back to MON
-                            await swap_token_to_mon(private_key, token_address, token_symbol, w3)
+                            # await swap_token_to_mon(private_key, token_address, token_symbol, w3)
                             break
 
                         except Exception as e:
@@ -317,13 +310,15 @@ async def run_swap_cycle(cycles, private_keys):
                             elif swap_retries < 3:
                                 print(f"{Fore.YELLOW}🔄 Retrying swap in 30 seconds...{Style.RESET_ALL}")
                                 await asyncio.sleep(30)
+                                # Randomly select a token to trade
+                                token_symbol, token_address = random.choice(list(TOKEN_ADDRESSES.items()))
                                 swap_retries += 1
                                 continue
                             else:
                                 raise  # Propagate error to account level
 
                     if i < cycles - 1:
-                        delay = get_random_delay()
+                        delay = random.randint(30, 60)
                         print(
                             f"\n{Fore.YELLOW}⏳ Waiting {delay / 60:.1f} minutes before next cycle...{Style.RESET_ALL}")
                         await asyncio.sleep(delay)
@@ -358,6 +353,7 @@ async def run_swap_cycle(cycles, private_keys):
     print(
         f"{Fore.GREEN}│ DONE: {successful_accounts}/{len(private_keys)} accounts, {cycles} cycles each{' ' * (60 - 55 - len(str(successful_accounts)) - len(str(len(private_keys))) - len(str(cycles)))}│{Style.RESET_ALL}")
     print(f"{Fore.GREEN}{'═' * 60}{Style.RESET_ALL}")
+
 
 # Main function
 async def run():
