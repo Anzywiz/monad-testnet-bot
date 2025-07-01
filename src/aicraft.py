@@ -449,6 +449,7 @@ async def ai_craft_voting(private_key):
                     logging.error(f"Error in aicraft: {e}.")
                     raise e
 
+
 async def run():
     """Run AI Craft voting with multiple private keys from private_keys.txt."""
 
